@@ -1,132 +1,98 @@
 import SwiftData
 import SwiftUI
 
-/// The two collections the Library tab can switch between.
-///
-/// `CaseIterable` gives us `allCases` to build the picker from, and
-/// `Identifiable` lets `ForEach` loop over the cases.
-enum LibrarySection: CaseIterable, Identifiable {
-    case playlists
-    case places
-
-    var id: Self { self }
-
-    var title: LocalizedStringResource {
-        switch self {
-        case .playlists: "Playlists"
-        case .places: "Places"
-        }
-    }
-}
-
-/// The Library tab: a segmented switch between Caffy's playlists and places.
+/// The Library tab: how the user's listening has moved, as a river of genres
+/// with each era's print sitting on top.
 struct LibraryView: View {
-    /// `@State` is storage this view owns. Changing it re-renders the view.
-    @State private var section: LibrarySection = .playlists
+    @Query(sort: \Era.startDate, order: .reverse) private var eras: [Era]
+
+    /// The era whose sheet is open.
+    @State private var selectedEra: Era?
+
+    /// Where each print rests, in turn: its position across the river on a
+    /// 390-point width, and its tilt in degrees.
+    private static let resting: [(x: Double, tilt: Double)] = [(244, 3), (56, -3), (246, 2), (52, -2)]
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                // `$section` is a binding: it lets the picker both read and
-                // change the `section` value.
-                Picker("Section", selection: $section) {
-                    ForEach(LibrarySection.allCases) { section in
-                        Text(section.title).tag(section)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("library")
+                        .font(Theme.display(44, relativeTo: .largeTitle))
+                        .tracking(-1.76)
+                        .accessibilityAddTraits(.isHeader)
+                    Text("How your listening has moved. Tap an era to open its music.")
+                        .font(Theme.mono(12))
+                        .foregroundStyle(Theme.softInk)
+                }
+                .foregroundStyle(Theme.ink)
+                .padding(.leading, 18)
+                .padding(.trailing, 84)
+                .padding(.top, 8)
+                .padding(.bottom, 18)
+
+                if !eras.isEmpty {
+                    river
+                }
+            }
+            .padding(.bottom, 120)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(PaperBackground())
+        }
+        .scrollIndicators(.hidden)
+        .background(Theme.cream)
+        .overlay {
+            if eras.isEmpty {
+                ContentUnavailableView(
+                    "No Eras Yet",
+                    systemImage: "waveform.path",
+                    description: Text("Your listening river appears as Caffy finds eras.")
+                )
+            }
+        }
+        .sheet(item: $selectedEra) { era in
+            EraSheet(era: era)
+        }
+    }
+
+    private var river: some View {
+        let layout = RiverLayout(eraDates: eras.map(\.startDate), now: .now)
+
+        return GeometryReader { geometry in
+            let scale = geometry.size.width / 390
+
+            ZStack(alignment: .topLeading) {
+                GenreRiverView(river: .sample, layout: layout, stamps: eras.map(stamp))
+
+                ForEach(Array(eras.enumerated()), id: \.element.id) { index, era in
+                    let resting = Self.resting[index % Self.resting.count]
+                    EraPrint(era: era, isSelected: selectedEra == era) {
+                        selectedEra = era
                     }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                .padding(.bottom, 8)
-
-                switch section {
-                case .playlists:
-                    PlaylistList()
-                case .places:
-                    PlaceList()
+                    .modifier(DriftingPrint(tilt: resting.tilt, drift: Self.drift(tilt: resting.tilt)))
+                    .offset(
+                        x: resting.x * scale,
+                        y: layout.notches[index] - RiverLayout.notchOffset + 14
+                    )
                 }
             }
-            .navigationTitle("Library")
-            .navigationDestination(for: CaffyPlaylist.self) { playlist in
-                PlaylistDetailView(playlist: playlist)
-            }
-            .navigationDestination(for: Place.self) { place in
-                PlaceDetailView(place: place)
-            }
+        }
+        .frame(height: layout.height)
+    }
+
+    /// How a print sways on scroll, mirroring the design's Library motion.
+    private nonisolated static func drift(tilt: Double) -> DriftingPrint.Drift {
+        { distance in
+            let side: Double = tilt > 0 ? 1 : -1
+            return (x: side * distance * 8, y: distance * 26, rotation: tilt + side * distance * 6)
         }
     }
-}
 
-/// Every Caffy playlist, A to Z.
-struct PlaylistList: View {
-    @Query(sort: \CaffyPlaylist.name) private var playlists: [CaffyPlaylist]
-
-    var body: some View {
-        List(playlists) { playlist in
-            NavigationLink(value: playlist) {
-                LibraryRow(
-                    title: playlist.name,
-                    subtitle: playlist.place?.name ?? "",
-                    seed: playlist.place?.name ?? playlist.name
-                )
-            }
-        }
-        .overlay {
-            if playlists.isEmpty {
-                ContentUnavailableView(
-                    "No Playlists Yet",
-                    systemImage: "music.note.list",
-                    description: Text("Playlists appear here as Caffy discovers places.")
-                )
-            }
-        }
-    }
-}
-
-/// Every place Caffy knows about, A to Z.
-struct PlaceList: View {
-    @Query(sort: \Place.name) private var places: [Place]
-
-    var body: some View {
-        List(places) { place in
-            NavigationLink(value: place) {
-                LibraryRow(
-                    title: place.name,
-                    subtitle: String(localized: "\(place.moments.count) moments"),
-                    seed: place.name
-                )
-            }
-        }
-        .overlay {
-            if places.isEmpty {
-                ContentUnavailableView(
-                    "No Places Yet",
-                    systemImage: "mappin.and.ellipse",
-                    description: Text("Places appear here as Caffy finds them in your photos.")
-                )
-            }
-        }
-    }
-}
-
-/// A list row with a small thumbnail, a title, and a subtitle.
-struct LibraryRow: View {
-    let title: String
-    let subtitle: String
-    let seed: String
-
-    var body: some View {
-        HStack(spacing: 12) {
-            PhotoPlaceholder(seed: seed)
-                .frame(width: 48, height: 48)
-                .clipShape(.rect(cornerRadius: 8))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.headline)
-                Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-        }
+    /// The ruler's date stamp for an era, such as "Apr\n2026".
+    private func stamp(for era: Era) -> String {
+        let month = era.startDate.formatted(.dateTime.month(.abbreviated))
+        let year = era.startDate.formatted(.dateTime.year())
+        return "\(month)\n\(year)"
     }
 }
 

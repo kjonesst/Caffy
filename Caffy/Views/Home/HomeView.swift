@@ -1,33 +1,47 @@
 import SwiftData
 import SwiftUI
 
-/// The Home tab: recently updated playlists, then a collage of recent moments.
+/// The Home tab: one card per era, newest first.
 struct HomeView: View {
     /// `@Query` fetches from SwiftData and re-renders the view when the data
-    /// changes. These two keep moments and playlists newest-first.
-    @Query(sort: \Moment.date, order: .reverse) private var moments: [Moment]
-    @Query(sort: \CaffyPlaylist.lastUpdated, order: .reverse) private var playlists: [CaffyPlaylist]
+    /// changes.
+    @Query(sort: \Era.startDate, order: .reverse) private var eras: [Era]
 
     var body: some View {
-        // `NavigationStack` lets views push detail pages with `NavigationLink`.
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
-                    if !playlists.isEmpty {
-                        RecentPlaylistsSection(playlists: Array(playlists.prefix(5)))
-                    }
-                    MomentsCollage(moments: moments)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("caffy")
+                        .font(Theme.display(56, weight: .heavy, relativeTo: .largeTitle))
+                        .tracking(-2.2)
+                        .accessibilityAddTraits(.isHeader)
+                    Text("Your photos, with the music of the time.")
+                        .font(Theme.mono(12))
+                        .foregroundStyle(Theme.softInk)
                 }
-                .padding()
+                .padding(.horizontal, 6)
+
+                ForEach(Array(eras.enumerated()), id: \.element.id) { index, era in
+                    EraCard(era: era, number: eras.count - index)
+                }
             }
-            .navigationTitle("Caffy")
-            // When a `NavigationLink(value:)` is tapped, these decide which
-            // page to show for that type of value.
-            .navigationDestination(for: CaffyPlaylist.self) { playlist in
-                PlaylistDetailView(playlist: playlist)
-            }
-            .navigationDestination(for: Place.self) { place in
-                PlaceDetailView(place: place)
+            .foregroundStyle(Theme.ink)
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, 120)
+            .frame(maxWidth: 480)
+            .frame(maxWidth: .infinity)
+            .background(PaperBackground())
+        }
+        .scrollIndicators(.hidden)
+        .background(Theme.cream)
+        .overlay {
+            if eras.isEmpty {
+                ContentUnavailableView(
+                    "No Eras Yet",
+                    systemImage: "photo.on.rectangle.angled",
+                    description: Text("Caffy will add eras from your photos and listening.")
+                )
             }
         }
     }

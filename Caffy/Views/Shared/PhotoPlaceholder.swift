@@ -1,41 +1,43 @@
 import SwiftUI
 
-/// Stands in for a real photo until PhotoKit is connected.
+/// Stands in for a real photo or album cover until PhotoKit and MusicKit are
+/// connected.
 ///
-/// It draws a gradient whose colours are picked from `seed`, so each place
-/// always gets the same look.
+/// It draws a flat tone picked from `seed`, so each item keeps the same look.
 struct PhotoPlaceholder: View {
     let seed: String
+    var showsIcon = true
 
-    private static let palettes: [[Color]] = [
-        [.orange, .pink],
-        [.teal, .blue],
-        [.purple, .indigo],
-        [.green, .mint],
-        [.yellow, .orange],
-        [.cyan, .purple]
+    private static let tones: [Color] = [
+        Color(hex: 0xD9A06B),
+        Color(hex: 0x8C9A6A),
+        Color(hex: 0xC97B5A),
+        Color(hex: 0x7F8FA3),
+        Color(hex: 0xB9A27A),
+        Color(hex: 0xA5705C)
     ]
 
     var body: some View {
-        LinearGradient(colors: palette, startPoint: .topLeading, endPoint: .bottomTrailing)
+        tone
             .overlay {
-                Image(systemName: "photo")
-                    .font(.title)
-                    .foregroundStyle(.white.opacity(0.8))
+                if showsIcon {
+                    Image(systemName: "photo")
+                        .font(.title2)
+                        .foregroundStyle(Theme.cream.opacity(0.75))
+                }
             }
             .accessibilityHidden(true)
     }
 
-    /// Adds up the seed's characters to choose a palette. (`String.hashValue`
+    /// Adds up the seed's characters to choose a tone. (`String.hashValue`
     /// changes on every launch, so it can't be used for a stable choice.)
-    private var palette: [Color] {
+    private var tone: Color {
         let total = seed.unicodeScalars.reduce(0) { $0 + Int($1.value) }
-        return Self.palettes[total % Self.palettes.count]
+        return Self.tones[total % Self.tones.count]
     }
 }
 
 #Preview {
     PhotoPlaceholder(seed: "Bondi Beach")
         .frame(width: 200, height: 140)
-        .clipShape(.rect(cornerRadius: 12))
 }

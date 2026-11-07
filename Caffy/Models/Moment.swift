@@ -1,8 +1,7 @@
 import Foundation
 import SwiftData
 
-/// A point in time at a place — usually a photo — paired with the songs the
-/// user was listening to around then.
+/// A photo paired with the songs the user was listening to around then.
 @Model
 final class Moment {
     var date: Date
@@ -11,14 +10,22 @@ final class Moment {
     /// `nil` for sample data, which shows a placeholder image instead.
     var photoAssetIdentifier: String?
 
+    /// The photo's width divided by its height. A collage with a single photo
+    /// uses this to choose a portrait or landscape print.
+    var photoAspectRatio: Double = 1
+
     var songs: [Song]
 
-    /// Where this moment happened. The other side of `Place.moments`.
+    /// The era this moment belongs to. The other side of `Era.moments`.
+    var era: Era?
+
+    /// Where this moment happened, if Caffy knows. The other side of `Place.moments`.
     var place: Place?
 
-    init(date: Date, songs: [Song], photoAssetIdentifier: String? = nil) {
+    init(date: Date, songs: [Song], photoAssetIdentifier: String? = nil, photoAspectRatio: Double = 1) {
         self.date = date
         self.songs = songs
         self.photoAssetIdentifier = photoAssetIdentifier
+        self.photoAspectRatio = photoAspectRatio
     }
 }

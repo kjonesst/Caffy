@@ -3,6 +3,8 @@ import SwiftData
 
 /// A location Caffy knows about, such as a café, a beach, or a city on a trip.
 ///
+/// Places are optional detail on a moment. Eras, not places, organise the app.
+///
 /// `@Model` turns this class into a SwiftData model: its properties are saved to
 /// disk automatically, and SwiftUI views update when they change.
 @Model
@@ -11,23 +13,14 @@ final class Place {
     var latitude: Double
     var longitude: Double
 
-    /// Every moment captured here. `.cascade` means deleting a place also
-    /// deletes its moments, and `inverse` links this to `Moment.place`.
-    @Relationship(deleteRule: .cascade, inverse: \Moment.place)
+    /// Every moment captured here. `.nullify` keeps a moment in its era if its
+    /// place is deleted, and `inverse` links this to `Moment.place`.
+    @Relationship(deleteRule: .nullify, inverse: \Moment.place)
     var moments: [Moment] = []
-
-    /// The self-updating playlist Caffy builds for this place.
-    @Relationship(deleteRule: .cascade, inverse: \CaffyPlaylist.place)
-    var playlist: CaffyPlaylist?
 
     init(name: String, latitude: Double, longitude: Double) {
         self.name = name
         self.latitude = latitude
         self.longitude = longitude
-    }
-
-    /// SwiftData doesn't keep to-many relationships in any order, so sort here.
-    var momentsNewestFirst: [Moment] {
-        moments.sorted { $0.date > $1.date }
     }
 }

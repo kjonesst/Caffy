@@ -13,4 +13,10 @@ nonisolated struct Song: Codable, Hashable, Identifiable {
     let id: String
     let title: String
     let artist: String
+
+    /// Cover art. `nil` shows a placeholder tile.
+    var artworkURL: URL? = nil
+
+    /// The song's main genre, used to draw the genre river.
+    var genre: String? = nil
 }

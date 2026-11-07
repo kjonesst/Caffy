@@ -7,8 +7,9 @@ import SwiftUI
 /// Use it by writing `#Preview(traits: .sampleData) { ... }`.
 struct SampleDataPreview: PreviewModifier {
     static func makeSharedContext() async throws -> ModelContainer {
+        Theme.registerFonts()
         let container = try ModelContainer(
-            for: Place.self, Moment.self, CaffyPlaylist.self,
+            for: Era.self, Moment.self, Place.self, CaffyPlaylist.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         try await SampleData.insert(into: container.mainContext, using: MockMusicProvider())

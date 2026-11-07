@@ -5,32 +5,31 @@ import Foundation
 /// It's deterministic — the same date always gives the same songs — which makes
 /// sample data and previews predictable.
 struct MockMusicProvider: MusicProvider {
-    /// How many songs to return for each moment.
-    var songsPerMoment = 3
+    /// The sample songs for each year. Anything older uses `earliestSongs`.
+    static let songsByYear: [Int: [Song]] = [
+        2026: [
+            Song(id: "mock-flaming-june", title: "Flaming June", artist: "BT", genre: "Trance"),
+            Song(id: "mock-long-way", title: "Long Way from Home (feat. RBBTS)", artist: "Above & Beyond & Spencer Brown", genre: "Progressive"),
+            Song(id: "mock-counting", title: "Counting Down the Days (feat. Gemma Hayes)", artist: "Above & Beyond", genre: "Trance")
+        ],
+        2025: [
+            Song(id: "mock-letting-go", title: "Begin By Letting Go", artist: "Etherwood", genre: "Drum & bass"),
+            Song(id: "mock-be-with-me", title: "Be With Me", artist: "Love Remain", genre: "Chillout"),
+            Song(id: "mock-alone", title: "I Feel Alone, and It's Cold Outside", artist: "After Wes", genre: "Chillout"),
+            Song(id: "mock-mirage", title: "Mirage (Extended Chill Mix)", artist: "Hemstock & Jennings", genre: "Chillout")
+        ],
+        2024: [
+            Song(id: "mock-dont-give-up", title: "Don't Give Up (feat. Bryan Adams)", artist: "Chicane", genre: "Trance"),
+            Song(id: "mock-miracle", title: "Miracle", artist: "Schiller & Tricia McTeague", genre: "Progressive")
+        ]
+    ]
 
-    static let catalog: [Song] = [
-        Song(id: "mock-01", title: "Dreams", artist: "Fleetwood Mac"),
-        Song(id: "mock-02", title: "Midnight City", artist: "M83"),
-        Song(id: "mock-03", title: "Electric Feel", artist: "MGMT"),
-        Song(id: "mock-04", title: "Redbone", artist: "Childish Gambino"),
-        Song(id: "mock-05", title: "Feels Like We Only Go Backwards", artist: "Tame Impala"),
-        Song(id: "mock-06", title: "Pink + White", artist: "Frank Ocean"),
-        Song(id: "mock-07", title: "Sunflower", artist: "Post Malone & Swae Lee"),
-        Song(id: "mock-08", title: "Riptide", artist: "Vance Joy"),
-        Song(id: "mock-09", title: "Golden Hour", artist: "JVKE"),
-        Song(id: "mock-10", title: "Blinding Lights", artist: "The Weeknd"),
-        Song(id: "mock-11", title: "Heat Waves", artist: "Glass Animals"),
-        Song(id: "mock-12", title: "Kids", artist: "MGMT")
+    static let earliestSongs = [
+        Song(id: "mock-the-chain", title: "The Chain", artist: "Fleetwood Mac", genre: "Classic rock")
     ]
 
     func songs(playedAround date: Date) async throws -> [Song] {
-        let catalog = Self.catalog
-        // Use the day of the year to pick a starting point in the catalog, then
-        // take the next few songs (wrapping around), so each day differs.
-        let dayOfYear = Calendar.current.ordinality(of: .day, in: .year, for: date) ?? 1
-        let count = min(songsPerMoment, catalog.count)
-        return (0..<count).map { offset in
-            catalog[(dayOfYear + offset) % catalog.count]
-        }
+        let year = Calendar.current.component(.year, from: date)
+        return Self.songsByYear[year] ?? Self.earliestSongs
     }
 }
