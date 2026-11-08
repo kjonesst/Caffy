@@ -49,7 +49,15 @@ struct EraCard: View {
         .padding(.horizontal, 14)
         .padding(.top, 18)
         .padding(.bottom, 14)
-        .background(era.palette.paper)
+        // The glass blurs away the fine paper grain behind it, so the same
+        // grain is drawn again here: above the glass, below the card's content.
+        .background {
+            Image("PaperGrain")
+                .resizable(resizingMode: .tile)
+                .accessibilityHidden(true)
+        }
+        // Tinted Liquid Glass in the era's colour, for the edge highlights and depth.
+        .glassEffect(.regular.tint(era.palette.paper.opacity(0.8)), in: .rect)
         .foregroundStyle(era.palette.ink)
     }
 }
