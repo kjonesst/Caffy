@@ -254,6 +254,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8A5GXR7BY3;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
@@ -276,7 +277,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.kennethjonesstephan.Caffy;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kjonesst.caffytest1;
 				PRODUCT_NAME = Caffy;
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = iphoneos;
@@ -296,6 +297,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8A5GXR7BY3;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
@@ -318,7 +320,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.kennethjonesstephan.Caffy;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kjonesst.caffytest1;
 				PRODUCT_NAME = Caffy;
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = iphoneos;

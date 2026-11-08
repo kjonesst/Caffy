@@ -42,6 +42,8 @@ struct EraCard: View {
             // The first five moments, newest first.
             EraCollage(moments: Array(era.momentsNewestFirst.prefix(5)), tapeColor: era.palette.tape)
 
+            ListenPill(palette: era.palette)
+
             SongList(songs: era.songs)
         }
         .padding(.horizontal, 14)

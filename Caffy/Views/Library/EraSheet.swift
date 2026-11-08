@@ -38,7 +38,7 @@ struct EraSheet: View {
                 Text(era.summary)
                     .font(Theme.display(17))
 
-                SongList(songs: era.songs)
+                SongList(songs: era.songs, showsListenButton: true)
             }
             .padding(.horizontal, 16)
             .padding(.top, 20)
