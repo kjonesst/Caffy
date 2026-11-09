@@ -6,6 +6,11 @@ struct EraCard: View {
     /// The era's position counting from the oldest, starting at 1.
     let number: Int
 
+    /// How many songs the card lists before "See all".
+    private static let songLimit = 10
+
+    @State private var showsAllSongs = false
+
     private var tag: String {
         guard era.isCurrent else { return String(localized: "Era \(number)") }
         let updated = era.playlist?.lastUpdated ?? .now
@@ -17,6 +22,9 @@ struct EraCard: View {
     }
 
     var body: some View {
+        // Sorted once per update and shared by the collage and the songs.
+        let moments = era.momentsNewestFirst
+
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 12) {
                 Text(tag.uppercased())
@@ -40,11 +48,13 @@ struct EraCard: View {
                 .accessibilityAddTraits(.isHeader)
 
             // The first five moments, newest first.
-            EraCollage(moments: Array(era.momentsNewestFirst.prefix(5)), tapeColor: era.palette.tape)
+            EraCollage(moments: Array(moments.prefix(5)), tapeColor: era.palette.tape)
 
             ListenPill(palette: era.palette)
 
-            SongList(songs: era.songs)
+            SongList(songs: Era.songs(in: moments), limit: Self.songLimit) {
+                showsAllSongs = true
+            }
         }
         .padding(.horizontal, 14)
         .padding(.top, 18)
@@ -59,5 +69,9 @@ struct EraCard: View {
         // Tinted Liquid Glass in the era's colour, for the edge highlights and depth.
         .glassEffect(.regular.tint(era.palette.paper.opacity(0.8)), in: .rect)
         .foregroundStyle(era.palette.ink)
+        // The full era, with every song.
+        .sheet(isPresented: $showsAllSongs) {
+            EraSheet(era: era)
+        }
     }
 }

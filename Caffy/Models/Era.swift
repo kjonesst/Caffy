@@ -58,6 +58,12 @@ final class Era {
     /// This is computed rather than stored, so the music "updates itself"
     /// whenever a new moment joins the era.
     var songs: [Song] {
+        Self.songs(in: momentsNewestFirst)
+    }
+
+    /// The songs from already-sorted moments, without repeats. Views that also
+    /// need the sorted moments call this, so the moments are sorted only once.
+    static func songs(in momentsNewestFirst: [Moment]) -> [Song] {
         var seenIDs = Set<String>()
         // `insert` returns `inserted == false` for IDs already in the set,
         // which filters out repeats while keeping the original order.
