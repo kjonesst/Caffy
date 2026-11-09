@@ -12,6 +12,12 @@ enum Theme {
     static let rulerLine = Color(hex: 0x8A6A2F)
     static let shadow = Color(red: 60 / 255, green: 30 / 255, blue: 10 / 255)
 
+    /// The Welcome screen's night look. It's the one place that changes in
+    /// dark mode: espresso instead of paper, bone instead of ink.
+    static let espresso = Color(hex: 0x1C130D)
+    static let bone = Color(hex: 0xD6D2CA)
+    static let softBone = Color(hex: 0xA89A88)
+
     /// Headlines and body text. `relativeTo` scales it with Dynamic Type.
     static func display(_ size: CGFloat, weight: Font.Weight = .medium, relativeTo style: Font.TextStyle = .body) -> Font {
         .custom("Bricolage Grotesque", size: size, relativeTo: style).weight(weight)
