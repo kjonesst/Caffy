@@ -6,6 +6,15 @@ struct SongList: View {
     /// Puts a plain listen button above the songs. Home leaves this off, because
     /// its cards have `ListenPill` instead.
     var showsListenButton = false
+    /// Shows only this many songs, followed by a "See all" row. `nil` shows
+    /// every song.
+    var limit: Int? = nil
+    /// Called by the "See all" row.
+    var showAll: () -> Void = {}
+
+    private var visibleSongs: ArraySlice<Song> {
+        songs.prefix(limit ?? songs.count)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -22,8 +31,24 @@ struct SongList: View {
                 .padding(.bottom, 4)
             }
 
-            ForEach(songs) { song in
+            ForEach(visibleSongs) { song in
                 SongRow(song: song)
+            }
+
+            if visibleSongs.count < songs.count {
+                Button(action: showAll) {
+                    HStack {
+                        Text("See all \(songs.count) songs")
+                            .font(Theme.mono(12, medium: true))
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .bold))
+                    }
+                    .foregroundStyle(Theme.ink)
+                    .frame(minHeight: 48)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 10)
