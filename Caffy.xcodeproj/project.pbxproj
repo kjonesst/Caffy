@@ -260,6 +260,8 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Caffy;
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Caffy matches the music you listen to with your photos' places and moments, then builds playlists in your Apple Music library.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Caffy reads where and when your photos were taken to match them with your music. Your photos stay on your device.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -303,6 +305,8 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Caffy;
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Caffy matches the music you listen to with your photos' places and moments, then builds playlists in your Apple Music library.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Caffy reads where and when your photos were taken to match them with your music. Your photos stay on your device.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;

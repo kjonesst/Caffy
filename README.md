@@ -42,7 +42,9 @@ Step 3 is the main validation point. If snapshots turn out to be too unreliable,
 
 ## Design
 
-The Home and Library screens come from the [Caffy Home and Library](https://claude.ai/artifact/DraouELjd2r5fLAQHe8vn9) Claude design. Bricolage Grotesque, DM Mono, and Reenie Beanie are bundled in `Caffy/Resources/Fonts` under the SIL Open Font License. Not designed yet: the Profile screen, empty states, and the permissions flow.
+The Home and Library screens come from the [Caffy Home and Library](https://claude.ai/artifact/DraouELjd2r5fLAQHe8vn9) Claude design. Onboarding (`Caffy/Views/Onboarding`) is seven steps: welcome, the problem, how it works, privacy, Apple Music, Photos, and ready. Its hero, `MemoryBurst`, is a native SwiftUI port of the 21st.dev "LogoBurst" component, with photo and playlist artwork added. All onboarding copy lives in `OnboardingCopy.swift`. Bricolage Grotesque, DM Mono, and Reenie Beanie are bundled in `Caffy/Resources/Fonts` under the SIL Open Font License. Not designed yet: the Profile screen and empty states.
+
+DEBUG builds have a few shortcuts for working on onboarding: the profile button's menu has **Replay onboarding**, `-onboardingStep <1–7>` opens a given step, and `-fakePermissions <preset>` (for example `musicDenied`, `noSubscription`, `photosLimited`, `allGranted`) fakes a permission outcome, which the simulator needs because it has no Apple Music.
 
 ## Known constraints
 
