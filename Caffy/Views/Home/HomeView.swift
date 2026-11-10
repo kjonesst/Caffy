@@ -46,6 +46,8 @@ struct HomeView: View {
                     Text("caffy")
                         .font(Theme.display(56, weight: .heavy, relativeTo: .largeTitle))
                         .tracking(-2.2)
+                        // The launch splash's title flies here, then hands over.
+                        .caffyTitleTarget()
                         .accessibilityAddTraits(.isHeader)
                     Text("Your photos, with the music of the time.")
                         .font(Theme.mono(12))

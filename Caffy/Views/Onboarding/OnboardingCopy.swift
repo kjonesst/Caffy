@@ -28,7 +28,8 @@ enum OnboardingCopy {
     }
 
     enum Welcome {
-        static let appName: LocalizedStringResource = "Caffy"
+        /// Lowercase, like the wordmark on Home and in the launch splash, which glides into it.
+        static let appName: LocalizedStringResource = "caffy"
         static let headline: LocalizedStringResource = "Your photos have places. Your places have a soundtrack."
         static let button: LocalizedStringResource = "Get started"
     }

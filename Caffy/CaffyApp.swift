@@ -13,15 +13,19 @@ import SwiftUI
 
     var body: some Scene {
         WindowGroup {
-            Group {
-                if hasOnboarded {
-                    ContentView()
+            // The steaming-cup splash plays over everything on each launch, then
+            // flies the title to Home's "caffy" heading (or fades it during onboarding).
+            CaffyLaunchContainer {
+                Group {
+                    if hasOnboarded {
+                        ContentView()
+                            .transition(.opacity)
+                    } else {
+                        OnboardingView(startingAt: .launchStep) {
+                            withAnimation(.easeInOut(duration: 0.4)) { hasOnboarded = true }
+                        }
                         .transition(.opacity)
-                } else {
-                    OnboardingView(startingAt: .launchStep) {
-                        withAnimation(.easeInOut(duration: 0.4)) { hasOnboarded = true }
                     }
-                    .transition(.opacity)
                 }
             }
             .environment(permissions)

@@ -6,8 +6,19 @@
 	objectVersion = 90;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		2C3D622930A2AD320051D5ED /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 000000000000000000000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 000000000000000100000000;
+			remoteInfo = Caffy;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		000000000000000000000120 /* Caffy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Caffy.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2C3D622530A2AD320051D5ED /* CaffyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CaffyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -16,10 +27,20 @@
 			path = Caffy;
 			sourceTree = "<group>";
 		};
+		2C3D622630A2AD320051D5ED /* CaffyTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = CaffyTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		000000000000000130000000 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
+		2C3D622230A2AD320051D5ED /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
 			);
@@ -31,6 +52,7 @@
 			isa = PBXGroup;
 			children = (
 				000000000000000000000010 /* Caffy */,
+				2C3D622630A2AD320051D5ED /* CaffyTests */,
 				000000000000000000000020 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -39,6 +61,7 @@
 			isa = PBXGroup;
 			children = (
 				000000000000000000000120 /* Caffy.app */,
+				2C3D622530A2AD320051D5ED /* CaffyTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -64,6 +87,27 @@
 			productReference = 000000000000000000000120 /* Caffy.app */;
 			productType = "com.apple.product-type.application";
 		};
+		2C3D622430A2AD320051D5ED /* CaffyTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2C3D622D30A2AD320051D5ED /* Build configuration list for PBXNativeTarget "CaffyTests" */;
+			buildPhases = (
+				2C3D622130A2AD320051D5ED /* Sources */,
+				2C3D622230A2AD320051D5ED /* Frameworks */,
+				2C3D622330A2AD320051D5ED /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				2C3D622A30A2AD320051D5ED /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				2C3D622630A2AD320051D5ED /* CaffyTests */,
+			);
+			name = CaffyTests;
+			productName = CaffyTests;
+			productReference = 2C3D622530A2AD320051D5ED /* CaffyTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -71,11 +115,15 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2630;
+				LastSwiftUpdateCheck = 2720;
 				LastUpgradeCheck = 2710;
 				TargetAttributes = {
 					000000000000000100000000 = {
 						CreatedOnToolsVersion = 26.3;
+					};
+					2C3D622430A2AD320051D5ED = {
+						CreatedOnToolsVersion = 27.2;
+						TestTargetID = 000000000000000100000000;
 					};
 				};
 			};
@@ -94,12 +142,18 @@
 			projectRoot = "";
 			targets = (
 				000000000000000100000000 /* Caffy */,
+				2C3D622430A2AD320051D5ED /* CaffyTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		000000000000000140000000 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		2C3D622330A2AD320051D5ED /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
 			);
@@ -112,7 +166,20 @@
 			files = (
 			);
 		};
+		2C3D622130A2AD320051D5ED /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		2C3D622A30A2AD320051D5ED /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 000000000000000100000000 /* Caffy */;
+			targetProxy = 2C3D622930A2AD320051D5ED /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		000000000000000011000000 /* Debug configuration for PBXProject "Caffy" */ = {
@@ -252,6 +319,7 @@
 		000000000000000111000000 /* Debug configuration for PBXNativeTarget "Caffy" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 8A5GXR7BY3;
@@ -297,6 +365,7 @@
 		000000000000000112000000 /* Release configuration for PBXNativeTarget "Caffy" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 8A5GXR7BY3;
@@ -339,6 +408,53 @@
 			};
 			name = Release;
 		};
+		2C3D622B30A2AD320051D5ED /* Debug configuration for PBXNativeTarget "CaffyTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8A5GXR7BY3;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kjonesst.caffytest1.CaffyTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Caffy.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Caffy";
+			};
+			name = Debug;
+		};
+		2C3D622C30A2AD320051D5ED /* Release configuration for PBXNativeTarget "CaffyTests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8A5GXR7BY3;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kjonesst.caffytest1.CaffyTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Caffy.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Caffy";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -355,6 +471,14 @@
 			buildConfigurations = (
 				000000000000000111000000 /* Debug configuration for PBXNativeTarget "Caffy" */,
 				000000000000000112000000 /* Release configuration for PBXNativeTarget "Caffy" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		2C3D622D30A2AD320051D5ED /* Build configuration list for PBXNativeTarget "CaffyTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2C3D622B30A2AD320051D5ED /* Debug configuration for PBXNativeTarget "CaffyTests" */,
+				2C3D622C30A2AD320051D5ED /* Release configuration for PBXNativeTarget "CaffyTests" */,
 			);
 			defaultConfigurationName = Release;
 		};

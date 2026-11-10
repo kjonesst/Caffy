@@ -85,24 +85,48 @@ struct OnboardingLayout<Visual: View, Content: View>: View {
 
     private var copy: some View {
         VStack(alignment: .leading, spacing: OnboardingStyle.copySpacing) {
-            Text(title)
-                .font(titleFont)
-                .tracking(prominence == .hero ? -2 : -0.8)
-                .foregroundStyle(palette.title)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
+            titleText
 
             if let message {
-                Text(message)
-                    .font(messageFont)
-                    .foregroundStyle(prominence == .hero ? palette.title : palette.body)
-                    .fixedSize(horizontal: false, vertical: true)
+                messageText(message)
             }
 
             content
                 .padding(.top, OnboardingStyle.contentTopSpacing - OnboardingStyle.copySpacing)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// On the Welcome hero, the launch splash's title glides into this heading.
+    @ViewBuilder private var titleText: some View {
+        let text = Text(title)
+            .font(titleFont)
+            .tracking(prominence == .hero ? -2 : -0.8)
+            .foregroundStyle(palette.title)
+        if prominence == .hero {
+            text
+                .caffyTitleTarget(.glide)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+        } else {
+            text
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+        }
+    }
+
+    /// On the Welcome hero, the message rolls in word by word once the splash hands over.
+    @ViewBuilder private func messageText(_ message: LocalizedStringResource) -> some View {
+        if prominence == .hero {
+            CaffyWordRollText(String(localized: message), alignment: .leading)
+                .font(messageFont)
+                .foregroundStyle(palette.title)
+        } else {
+            Text(message)
+                .font(messageFont)
+                .foregroundStyle(palette.body)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private var titleFont: Font {
@@ -117,7 +141,16 @@ struct OnboardingLayout<Visual: View, Content: View>: View {
             : Theme.display(OnboardingStyle.messageSize, relativeTo: .body)
     }
 
-    private var buttons: some View {
+    /// On the Welcome hero, the buttons glow in as the message finishes rolling in.
+    @ViewBuilder private var buttons: some View {
+        if prominence == .hero {
+            buttonStack.caffyGlowIn(delay: 0.75)
+        } else {
+            buttonStack
+        }
+    }
+
+    private var buttonStack: some View {
         VStack(spacing: OnboardingStyle.buttonSpacing) {
             OnboardingPrimaryButton(action: primary)
             if let secondary {

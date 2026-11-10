@@ -66,6 +66,8 @@ enum MemoryBurstStyle {
     static let centreTapScale = 0.94
     static let calmFade = Animation.easeInOut(duration: 0.35)
     static let calmFadeOut = Animation.easeOut(duration: 0.15)
+    /// How the burst fades in when it has waited for the launch splash to finish.
+    static let afterSplashFade = Animation.easeOut(duration: 0.5)
 }
 
 // MARK: - Content
@@ -191,6 +193,9 @@ struct MemoryBurst: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+    /// True while the launch splash covers the screen. The burst waits for it
+    /// to finish, then fades in and plays from the start.
+    @Environment(\.caffySplashActive) private var splashActive
 
     @State private var startDate = Date.now
     @State private var phase = Phase.bursting
@@ -228,7 +233,11 @@ struct MemoryBurst: View {
         .accessibilityAction(named: "Replay animation") { replay() }
         .onAppear {
             isVisible = true
-            start()
+            // Behind the launch splash, wait until it hands over (see below).
+            if !splashActive { start() }
+        }
+        .onChange(of: splashActive) { _, active in
+            if !active { start(fadingIn: true) }
         }
         .onDisappear { isVisible = false }
         .onChange(of: replayTrigger) { replay() }
@@ -245,7 +254,8 @@ struct MemoryBurst: View {
 
     private func field(printSide: Double) -> some View {
         let isBreathing = phase == .breathing && breathes && !reduceMotion
-        let isPaused = reduceMotion || !isVisible || scenePhase != .active || (phase == .breathing && !breathes)
+        let isPaused = reduceMotion || !isVisible || splashActive || scenePhase != .active
+            || (phase == .breathing && !breathes)
         let interval = phase == .bursting ? nil : MemoryBurstStyle.breathFrameInterval
         let inset = printSide * MemoryBurstStyle.coreExtent * MemoryBurstStyle.coreInset
         let color = filamentColor
@@ -426,7 +436,8 @@ struct MemoryBurst: View {
     // MARK: Playback
 
     /// The first play, and a fresh start when Reduce Motion changes.
-    private func start() {
+    /// `fadingIn` fades the burst in as it starts, for when it waited for the launch splash.
+    private func start(fadingIn: Bool = false) {
         startDate = .now
         phase = .bursting
         if reduceMotion {
@@ -434,7 +445,11 @@ struct MemoryBurst: View {
             centreOpacity = 1
             withAnimation(MemoryBurstStyle.calmFade) { isRevealed = true }
         } else {
-            isRevealed = true
+            if fadingIn {
+                withAnimation(MemoryBurstStyle.afterSplashFade) { isRevealed = true }
+            } else {
+                isRevealed = true
+            }
             withAnimation(MemoryBurstStyle.centreSpring) {
                 centreScale = 1
                 centreOpacity = 1
