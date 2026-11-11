@@ -9,6 +9,15 @@ struct EraSheet: View {
     @State private var contentHeight: CGFloat = 420
 
     var body: some View {
+        // A sync can delete this era while it's on screen. Draw nothing for
+        // the one redraw before the list drops it (see `isLive`).
+        if era.isLive {
+            content
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top, spacing: 12) {

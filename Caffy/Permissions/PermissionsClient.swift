@@ -3,7 +3,7 @@ import Photos
 
 /// The system calls behind `PermissionsManager`.
 ///
-/// Like `MusicProvider`, this is a protocol so the real MusicKit and Photos
+/// Like `ListeningSource`, this is a protocol so the real MusicKit and Photos
 /// calls can be swapped for fixed answers in previews.
 protocol PermissionsClient {
     func musicStatus() -> MusicAccess

@@ -3,88 +3,98 @@ import SwiftData
 
 /// Fills the database with example eras, moments, and playlists so the app
 /// has something to show before PhotoKit and MusicKit are connected.
+///
+/// Nothing here is written by hand: a made-up year of photos and listening
+/// (`library(endingOn:calendar:)`) goes through the real era pipeline and
+/// `EraStore`, exactly as a real library will. The year always ends today,
+/// so the newest era is the current one.
 enum SampleData {
-    /// An era to create, plus the month its photos were taken in.
-    private struct SampleEra {
-        let title: String
-        let whenLabel: String
-        let summary: String
-        let year: Int
-        let month: Int
-        var isCurrent = false
-        let palette: EraPalette
-        /// One width-to-height ratio per photo. The count sets the collage.
-        let photoAspectRatios: [Double]
+    /// How many days the sample library covers, ending today.
+    static let libraryDays = 358
+
+    /// Put in front of every sample moment and photo id, so they're never
+    /// mistaken for real PhotoKit identifiers.
+    nonisolated static let idPrefix = "sample-"
+
+    /// A year in the life, ending on `now`'s day:
+    ///
+    /// 1. Sydney with classic rock, and four nights in Hobart.
+    /// 2. Chillout takes over.
+    /// 3. A move to Melbourne with drum & bass, and a weekend back in Sydney.
+    /// 4. Back in Sydney with trance, a day trip to Wollongong and a
+    ///    weekend in Melbourne, up to today.
+    ///
+    /// The same `now` day and calendar always give the same library.
+    static func library(endingOn now: Date, calendar: Calendar) -> Scenario {
+        let start = calendar.date(byAdding: .day, value: -libraryDays, to: calendar.startOfDay(for: now))!
+        return Scenario(startingOn: start, calendar: calendar, seed: 2026, idPrefix: idPrefix)
+            .listen(to: "Fleetwood Mac", genre: "Classic rock", perDay: 6, titles: ["The Chain", "Dreams", "Landslide"])
+            .alsoListen(to: "Chicane", genre: "Trance", perDay: 2, titles: ["Don't Give Up (feat. Bryan Adams)", "Saltwater", "Offshore"])
+            .live(at: .sydney, days: 70, photosPerWeek: 4)
+            .trip(to: .hobart, nights: 3)
+            .listen(to: "Love Remain", genre: "Chillout", perDay: 4, titles: ["Be With Me"])
+            .alsoListen(to: "After Wes", genre: "Chillout", perDay: 3, titles: ["I Feel Alone, and It's Cold Outside"])
+            .alsoListen(to: "Hemstock & Jennings", genre: "Chillout", perDay: 2, titles: ["Mirage (Extended Chill Mix)"])
+            .live(at: .sydney, days: 75, photosPerWeek: 4)
+            .listen(to: "Etherwood", genre: "Drum & bass", perDay: 6, titles: ["Begin By Letting Go"])
+            .alsoListen(to: "Love Remain", genre: "Chillout", perDay: 3, titles: ["Be With Me"])
+            .live(at: .melbourne, days: 80, photosPerWeek: 4)
+            .trip(to: .sydney, nights: 2)
+            .live(at: .melbourne, days: 20, photosPerWeek: 4)
+            .listen(to: "Above & Beyond", genre: "Trance", perDay: 5, titles: ["Counting Down the Days (feat. Gemma Hayes)", "Sun & Moon"])
+            .alsoListen(to: "BT", genre: "Trance", perDay: 3, titles: ["Flaming June", "Dreaming"])
+            .alsoListen(to: "Schiller & Tricia McTeague", genre: "Progressive", perDay: 1, titles: ["Miracle"])
+            .live(at: .sydney, days: 70, photosPerWeek: 4)
+            .dayTrip(to: .wollongong)
+            .live(at: .sydney, days: 20, photosPerWeek: 4)
+            .trip(to: .melbourne, nights: 2)
+            .live(at: .sydney, days: 12, photosPerWeek: 4)
     }
 
-    private static let eras: [SampleEra] = [
-        SampleEra(
-            title: "The Long Way Round", whenLabel: "2026",
-            summary: "Trance comes back bigger than ever, and chillout thins out.",
-            year: 2026, month: 4, isCurrent: true, palette: .rust,
-            photoAspectRatios: [1.6, 0.7, 1, 0.9, 1.2]
-        ),
-        SampleEra(
-            title: "Looking Up", whenLabel: "2025",
-            summary: "Chillout takes over, and drum & bass arrives.",
-            year: 2025, month: 5, palette: .olive,
-            photoAspectRatios: [0.75, 0.8, 1]
-        ),
-        SampleEra(
-            title: "Congrats", whenLabel: "2024",
-            summary: "Progressive and trance replace classic rock.",
-            year: 2024, month: 5, palette: .marigold,
-            photoAspectRatios: [0.75]
-        ),
-        SampleEra(
-            title: "Early Days", whenLabel: "way back",
-            summary: "Where it starts: classic rock.",
-            year: 2012, month: 7, palette: .oxblood,
-            photoAspectRatios: [1.75]
-        )
+    /// Generates sample eras only when the database has none from the
+    /// pipeline yet (it may still hold older hand-written sample eras, which
+    /// this replaces), so it runs on first launch and never duplicates.
+    static func insertIfNeeded(into context: ModelContext, now: Date = .now, calendar: Calendar = .current) async throws {
+        let pipelineEras = try context.fetchCount(FetchDescriptor<Era>(predicate: #Predicate { $0.eraID != nil }))
+        guard pipelineEras == 0 else { return }
+        try await insert(into: context, now: now, calendar: calendar)
+    }
+
+    /// Generates and saves the sample eras unconditionally. Used by previews.
+    static func insert(into context: ModelContext, now: Date = .now, calendar: Calendar = .current) async throws {
+        let library = library(endingOn: now, calendar: calendar)
+        let pipeline = EraPipeline(namer: SamplePlaceNamer(), sampler: sampler(for: library.moments))
+        let result = await pipeline.run(moments: library.moments, plays: library.plays, now: now, calendar: calendar)
+        try EraStore(context: context).save(result, moments: library.moments, now: now)
+    }
+
+    /// Each sample city's photos have a main tone and a smaller accent, like
+    /// real photos with more than one colour in them. The accent gives the
+    /// palette builder a second choice when the main tone matches the era
+    /// before.
+    static let cityColours: [(place: SamplePlace, main: UInt32, accent: UInt32)] = [
+        (.sydney, 0xB5532F, 0x2F6F8F),
+        (.melbourne, 0x6B6E2E, 0x8A3B2E),
+        (.hobart, 0x2F6F6A, 0xC9A24A),
+        (.wollongong, 0xE2A53C, 0x2F5B8F)
     ]
 
-    /// Inserts sample data only when the database has no eras yet,
-    /// so it runs on first launch and never duplicates.
-    static func insertIfNeeded(into context: ModelContext, using provider: some MusicProvider) async throws {
-        let eraCount = try context.fetchCount(FetchDescriptor<Era>())
-        guard eraCount == 0 else { return }
-        try await insert(into: context, using: provider)
-    }
-
-    /// Inserts the sample data unconditionally. Used by previews.
-    static func insert(into context: ModelContext, using provider: some MusicProvider) async throws {
-        let calendar = Calendar.current
-        for (index, sample) in eras.enumerated() {
-            let start = calendar.date(from: DateComponents(year: sample.year, month: sample.month, day: 1)) ?? .now
-            // Each era ends where the next-newest one begins.
-            let newerEraStart = index > 0
-                ? calendar.date(from: DateComponents(year: eras[index - 1].year, month: eras[index - 1].month, day: 1))
-                : nil
-            let era = Era(
-                title: sample.title,
-                whenLabel: sample.whenLabel,
-                summary: sample.summary,
-                startDate: start,
-                endDate: sample.isCurrent ? nil : newerEraStart,
-                palette: sample.palette
-            )
-            context.insert(era)
-
-            for (photo, aspectRatio) in sample.photoAspectRatios.enumerated() {
-                // The first photo is the newest, so it leads the collage.
-                let date = calendar.date(byAdding: .day, value: sample.photoAspectRatios.count - photo, to: start) ?? start
-                let songs = try await provider.songs(playedAround: date)
-                // Appending to the relationship also inserts the moment and
-                // sets `moment.era` for us, because of the `inverse`.
-                era.moments.append(Moment(date: date, songs: songs, photoAspectRatio: aspectRatio))
-            }
-
-            era.playlist = CaffyPlaylist(
-                name: sample.title,
-                lastUpdated: sample.isCurrent ? .now : era.momentsNewestFirst.first?.date ?? start
-            )
+    static func sampler(for moments: [PhotoMoment]) -> SampleColorSampler {
+        var images: [String: RGBAImage] = [:]
+        for moment in moments {
+            guard let coordinate = moment.coordinate,
+                  let city = cityColours.first(where: { $0.place.coordinate.distance(to: coordinate) < 25_000 })
+            else { continue }
+            images[moment.coverID] = SampleImages.stripes([(city.main, 44), (city.accent, 20)])
         }
-        try context.save()
+        return SampleColorSampler(images: images)
     }
+
+    /// A few songs for previews of song lists.
+    static let previewSongs = [
+        Song(id: "fx-bt-1", title: "Flaming June", artist: "BT", genre: "Trance"),
+        Song(id: "fx-above---beyond-1", title: "Counting Down the Days (feat. Gemma Hayes)", artist: "Above & Beyond", genre: "Trance"),
+        Song(id: "fx-love-remain-1", title: "Be With Me", artist: "Love Remain", genre: "Chillout"),
+        Song(id: "fx-etherwood-1", title: "Begin By Letting Go", artist: "Etherwood", genre: "Drum & bass")
+    ]
 }

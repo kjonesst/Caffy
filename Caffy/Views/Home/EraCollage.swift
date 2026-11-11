@@ -109,8 +109,13 @@ struct EraCollage: View {
     }
 
     private func print(of moment: Moment, in slot: CollageSlot, scale: Double) -> some View {
-        PhotoPlaceholder(seed: "\(moment.date.timeIntervalSince1970)")
-            .frame(width: slot.width * scale, height: slot.height * scale)
+        let size = CGSize(width: slot.width * scale, height: slot.height * scale)
+        return PhotoThumbnail(
+            assetIdentifier: moment.photoAssetIdentifier,
+            seed: "\(moment.date.timeIntervalSince1970)",
+            size: size
+        )
+            .frame(width: size.width, height: size.height)
             .clipShape(.rect(cornerRadius: 10))
             .overlay {
                 RoundedRectangle(cornerRadius: 10)

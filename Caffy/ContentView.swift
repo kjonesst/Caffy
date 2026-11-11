@@ -5,8 +5,12 @@ import SwiftUI
 struct ContentView: View {
     /// The SwiftData context provided by `.modelContainer` in `CaffyApp`.
     @Environment(\.modelContext) private var modelContext
+    @Environment(PermissionsManager.self) private var permissions
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var selectedTab: AppTab = .home
+    /// Keeps eras in step with the photo library, once Caffy may read it.
+    @State private var librarySync: LibrarySync?
 
     var body: some View {
         // The system tab bar is hidden in favour of `FloatingTabBar`, but
@@ -32,15 +36,49 @@ struct ContentView: View {
         // `.task` runs async work when the view appears, and cancels it if
         // the view goes away first.
         .task {
-            await loadSampleDataIfNeeded()
+            await showEras()
+        }
+        // Photo access granted later, say from Settings: switch to the real library.
+        .onChange(of: permissions.photos) { _, access in
+            if access.isGranted {
+                Task { await showEras() }
+            }
+        }
+        // The user may have changed access in Settings while away.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { await permissions.refresh() }
+            }
         }
     }
 
-    /// Adds example data on first launch. Remove this once PhotoKit and
-    /// MusicKit provide real moments.
+    /// With photo access, syncs the real library (and keeps syncing as it
+    /// changes). Without it, shows the sample eras instead.
+    private func showEras() async {
+        if permissions.photos.isGranted {
+            let sync = librarySync ?? LibrarySync.live(context: modelContext)
+            librarySync = sync
+            switch await sync.sync() {
+            case .synced, .queued:
+                sync.observeLibraryChanges()
+                return
+            case .noAccess:
+                // PhotoKit disagrees with the app's permission state (DEBUG's
+                // `-fakePermissions` can do this), so fall back to samples.
+                break
+            case .failed(let reason):
+                print("Library sync failed: \(reason)")
+                return
+            }
+        }
+        await loadSampleDataIfNeeded()
+    }
+
+    /// Adds example eras when there are none yet, so the app has something to
+    /// show before photo access is granted.
     private func loadSampleDataIfNeeded() async {
         do {
-            try await SampleData.insertIfNeeded(into: modelContext, using: MockMusicProvider())
+            try await SampleData.insertIfNeeded(into: modelContext)
         } catch {
             print("Failed to load sample data: \(error)")
         }
@@ -49,4 +87,5 @@ struct ContentView: View {
 
 #Preview(traits: .sampleData) {
     ContentView()
+        .environment(PermissionsManager(client: PreviewPermissionsClient.nothingGranted))
 }

@@ -12,7 +12,7 @@ struct SampleDataPreview: PreviewModifier {
             for: Era.self, Moment.self, Place.self, CaffyPlaylist.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
-        try await SampleData.insert(into: container.mainContext, using: MockMusicProvider())
+        try await SampleData.insert(into: container.mainContext)
         return container
     }
 
