@@ -12,6 +12,10 @@ enum SampleData {
     /// How many days the sample library covers, ending today.
     static let libraryDays = 358
 
+    /// Put in front of every sample moment and photo id, so they're never
+    /// mistaken for real PhotoKit identifiers.
+    nonisolated static let idPrefix = "sample-"
+
     /// A year in the life, ending on `now`'s day:
     ///
     /// 1. Sydney with classic rock, and four nights in Hobart.
@@ -23,7 +27,7 @@ enum SampleData {
     /// The same `now` day and calendar always give the same library.
     static func library(endingOn now: Date, calendar: Calendar) -> Scenario {
         let start = calendar.date(byAdding: .day, value: -libraryDays, to: calendar.startOfDay(for: now))!
-        return Scenario(startingOn: start, calendar: calendar, seed: 2026, idPrefix: "sample-")
+        return Scenario(startingOn: start, calendar: calendar, seed: 2026, idPrefix: idPrefix)
             .listen(to: "Fleetwood Mac", genre: "Classic rock", perDay: 6, titles: ["The Chain", "Dreams", "Landslide"])
             .alsoListen(to: "Chicane", genre: "Trance", perDay: 2, titles: ["Don't Give Up (feat. Bryan Adams)", "Saltwater", "Offshore"])
             .live(at: .sydney, days: 70, photosPerWeek: 4)
