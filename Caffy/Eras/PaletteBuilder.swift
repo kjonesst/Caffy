@@ -161,16 +161,18 @@ nonisolated enum PaletteBuilder {
     /// A palette for every draft, keyed by draft id.
     ///
     /// Eras are done oldest first so each can avoid the colour of the era
-    /// before it. Cover photos are read one at a time, in order.
+    /// before it; `previous` is the palette of the era before the first
+    /// draft, if there is one. Cover photos are read one at a time, in order.
     static func palettes(
         for drafts: [EraDraft],
         moments: [PhotoMoment],
         sampler: some ColorSampler,
+        after previous: EraPalette? = nil,
         config: EraBuildConfig = .standard
     ) async -> [String: EraPalette] {
         let byID = Dictionary(moments.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var palettes: [String: EraPalette] = [:]
-        var previous: EraPalette?
+        var previous = previous
 
         for draft in drafts.sorted(by: { ($0.start, $0.id) < ($1.start, $1.id) }) {
             let eraMoments = draft.momentIDs.compactMap { byID[$0] }
