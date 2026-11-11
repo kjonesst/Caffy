@@ -25,6 +25,12 @@ struct EraBuildConfigTests {
         #expect(config.longGap < config.minEraLength)
     }
 
+    @Test func tripsSplitBeforeErasDo() {
+        // A trip broken by a long gap must already be two trips.
+        #expect(config.maxTripGap < config.longGap)
+        #expect(config.unlocatedInheritWindow < config.maxTripGap)
+    }
+
     @Test func cutScoreWeightsAddUpToOne() {
         #expect(abs(config.musicChangeWeight + config.gapWeight - 1) < 1e-9)
         #expect(config.strongCutScore > 0 && config.strongCutScore <= 1)

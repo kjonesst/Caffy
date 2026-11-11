@@ -39,6 +39,14 @@ nonisolated struct EraBuildConfig: Sendable, Equatable {
     /// A run of photos away from home is an overnight trip if it crosses this
     /// local hour (04:00). Runs that don't are day trips.
     var overnightCutoffHour: Int = 4
+    /// Two away photos further apart than this, with no home photo between,
+    /// belong to separate trips. People photograph a trip at least every few
+    /// days, so a longer silence most likely means they went home.
+    var maxTripGap: TimeInterval = 4 * 24 * 60 * 60
+    /// A trip holding the newest photo is still "now" for this long after it.
+    var currentTripWindow: TimeInterval = 24 * 60 * 60
+    /// Photos dated more than this after `now` (a wrong camera clock) are ignored.
+    var futureTolerance: TimeInterval = 24 * 60 * 60
 
     // MARK: - Segment: era boundaries
 
