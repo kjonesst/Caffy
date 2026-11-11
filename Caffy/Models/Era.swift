@@ -20,7 +20,19 @@ final class Era {
     /// `nil` for the era the user is living through now.
     var endDate: Date?
 
-    var palette: EraPalette
+    /// The card's colours, as saved.
+    ///
+    /// Saved as a new, optional `colors` attribute because `palette` used to
+    /// be saved as an enum. SwiftData saves a struct as one column per field,
+    /// and an existing database can only gain those columns on its own if
+    /// they may be empty; otherwise it fails to open. Use `palette`.
+    private var colors: EraPalette?
+
+    /// The card's colours. Eras saved before palettes became colours show rust.
+    var palette: EraPalette {
+        get { colors ?? .rust }
+        set { colors = newValue }
+    }
 
     /// The photos and songs in this era. Deleting an era deletes its moments.
     @Relationship(deleteRule: .cascade, inverse: \Moment.era)
@@ -43,7 +55,7 @@ final class Era {
         self.summary = summary
         self.startDate = startDate
         self.endDate = endDate
-        self.palette = palette
+        self.colors = palette
     }
 
     var isCurrent: Bool { endDate == nil }
