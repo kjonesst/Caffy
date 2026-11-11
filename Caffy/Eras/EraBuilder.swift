@@ -42,10 +42,14 @@ nonisolated enum EraBuilder {
         let home = HomeInference.infer(sortedMoments, calendar: calendar, config: config)
         let order = Dictionary(sortedMoments.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { first, _ in first })
 
-        // Frozen eras, keeping only the photos still in the library.
+        // Frozen eras, keeping only the photos still in the library. A frozen
+        // era with none left is gone, and must not hold a boundary in place:
+        // sample eras, say, would otherwise make a whole real library look
+        // like late imports.
         var kept: [(draft: EraDraft, momentIDs: [String])] = frozen
             .sorted { ($0.start, $0.id) < ($1.start, $1.id) }
             .map { ($0, $0.momentIDs.filter { order[$0] != nil }) }
+            .filter { !$0.1.isEmpty }
         let frozenMomentIDs = Set(kept.flatMap(\.momentIDs))
         let boundary = kept.compactMap(\.draft.end).max()
 
