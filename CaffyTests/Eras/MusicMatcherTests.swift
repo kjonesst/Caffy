@@ -317,7 +317,8 @@ struct MusicMatcherTests {
         }
         #expect(matched.count == 1_000)
         #expect(matched.allSatisfy { !$0.songs.isEmpty })
-        // Generous, because tests run as an unoptimised Debug build.
-        #expect(elapsed < .milliseconds(500))
+        // About 0.2 s on its own in a Debug build. Tests run in parallel and
+        // can be several times slower, so this only catches real regressions.
+        #expect(elapsed < .seconds(2))
     }
 }

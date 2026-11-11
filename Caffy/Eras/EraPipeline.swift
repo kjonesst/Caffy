@@ -34,6 +34,9 @@ nonisolated struct EraPipeline: Sendable {
     let sampler: any ColorSampler
     var config: EraBuildConfig = .standard
 
+    /// `@concurrent` so the work happens off the main actor even when called
+    /// from it (this project runs plain `async` functions on the caller's actor).
+    @concurrent
     func run(
         moments: [PhotoMoment],
         plays: [ListeningEvent],

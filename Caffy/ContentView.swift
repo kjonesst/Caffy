@@ -40,7 +40,7 @@ struct ContentView: View {
     /// MusicKit provide real moments.
     private func loadSampleDataIfNeeded() async {
         do {
-            try await SampleData.insertIfNeeded(into: modelContext, using: MockMusicProvider())
+            try await SampleData.insertIfNeeded(into: modelContext)
         } catch {
             print("Failed to load sample data: \(error)")
         }

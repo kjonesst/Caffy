@@ -207,7 +207,8 @@ struct EraSoftCutTests {
             drafts = EraSegmenter.segment(scenario.moments, plays: scenario.plays, home: home, now: scenario.now, calendar: scenario.calendar)
         }
         #expect(drafts.filter { $0.kind == .home }.count >= 40)
-        // Generous, because tests run as an unoptimised Debug build.
-        #expect(elapsed < .milliseconds(500))
+        // About 0.3 s on its own in a Debug build. Tests run in parallel and
+        // can be several times slower, so this only catches real regressions.
+        #expect(elapsed < .seconds(2))
     }
 }

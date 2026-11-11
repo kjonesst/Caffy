@@ -9,8 +9,8 @@ enum PipelineHarness {
     static let wollongongOrange: UInt32 = 0xE07A2E
 
     /// Photos take their city's colour. Photos without a location can't be read.
-    static func sampler(for moments: [PhotoMoment]) -> FixtureColorSampler {
-        let cityColours: [(FixturePlace, UInt32)] = [
+    static func sampler(for moments: [PhotoMoment]) -> SampleColorSampler {
+        let cityColours: [(SamplePlace, UInt32)] = [
             (.sydney, sydneyGreen), (.melbourne, melbourneBlue), (.hobart, hobartTeal), (.wollongong, wollongongOrange)
         ]
         var colors: [String: UInt32] = [:]
@@ -20,7 +20,7 @@ enum PipelineHarness {
             else { continue }
             colors[moment.coverID] = colour
         }
-        return FixtureColorSampler(colors: colors)
+        return SampleColorSampler(colors: colors)
     }
 
     static func run(
@@ -31,7 +31,7 @@ enum PipelineHarness {
         config: EraBuildConfig = .standard
     ) async -> EraPipelineResult {
         let moments = moments ?? scenario.moments
-        let pipeline = EraPipeline(namer: FixturePlaceNamer(), sampler: sampler(for: moments), config: config)
+        let pipeline = EraPipeline(namer: SamplePlaceNamer(), sampler: sampler(for: moments), config: config)
         return await pipeline.run(
             moments: moments,
             plays: scenario.plays,

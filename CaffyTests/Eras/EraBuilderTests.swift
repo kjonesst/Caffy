@@ -27,7 +27,7 @@ struct EraBuilderTests {
         )
     }
 
-    private static func moment(_ id: String, at date: Date, in place: FixturePlace) -> PhotoMoment {
+    private static func moment(_ id: String, at date: Date, in place: SamplePlace) -> PhotoMoment {
         PhotoMoment(id: id, start: date, end: date, photoIDs: [id], coverID: id, coverAspectRatio: 1, coordinate: place.coordinate)
     }
 

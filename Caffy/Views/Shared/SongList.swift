@@ -135,7 +135,7 @@ struct SongRow: View {
 #Preview {
     VStack {
         ListenPill(palette: .rust)
-        SongList(songs: MockMusicProvider.songsByYear[2026] ?? [], showsListenButton: true)
+        SongList(songs: SampleData.previewSongs, showsListenButton: true)
     }
     .padding()
 }

@@ -148,7 +148,7 @@ struct EraStoreTests {
         let firstStart = try #require(scenario.moments.first).start
         let early = PhotoMoment(
             id: "early", start: firstStart.addingTimeInterval(-Self.day), end: firstStart.addingTimeInterval(-Self.day),
-            photoIDs: ["early"], coverID: "early", coverAspectRatio: 1, coordinate: FixturePlace.sydney.coordinate
+            photoIDs: ["early"], coverID: "early", coverAspectRatio: 1, coordinate: SamplePlace.sydney.coordinate
         )
         try await sync(scenario, moments: [early] + scenario.moments)
 
@@ -188,7 +188,7 @@ struct EraStoreTests {
         #expect(songsBefore.values.allSatisfy { !$0.isEmpty })
 
         // The same library, but every play has gone.
-        let pipeline = EraPipeline(namer: FixturePlaceNamer(), sampler: PipelineHarness.sampler(for: Self.musicShift.moments))
+        let pipeline = EraPipeline(namer: SamplePlaceNamer(), sampler: PipelineHarness.sampler(for: Self.musicShift.moments))
         let quiet = await pipeline.run(
             moments: Self.musicShift.moments, plays: [], frozen: try store.frozenEras(),
             now: Self.musicShift.now, calendar: Self.musicShift.calendar
@@ -235,8 +235,20 @@ struct EraStoreTests {
         #expect(try eras().first?.moments.count == Self.musicShift.moments.count)
     }
 
-    @Test func sampleDataIsReplaced() async throws {
-        try await SampleData.insert(into: context, using: MockMusicProvider())
+    /// Eras saved before the pipeline existed: no ids, like the old
+    /// hand-written sample data.
+    private func insertLegacyEras() {
+        for (index, title) in ["The Long Way Round", "Looking Up"].enumerated() {
+            let era = Era(title: title, whenLabel: "2026", summary: "", startDate: Date(timeIntervalSince1970: Double(index) * 1_000_000), palette: .olive)
+            context.insert(era)
+            era.moments.append(Moment(date: era.startDate, songs: SampleData.previewSongs))
+            era.playlist = CaffyPlaylist(name: title, lastUpdated: era.startDate)
+        }
+    }
+
+    @Test func legacyErasAreReplaced() async throws {
+        insertLegacyEras()
+        #expect(try eras().count == 2)
         #expect(try eras().allSatisfy { $0.eraID == nil })
 
         let result = try await sync(Self.weekendAway)

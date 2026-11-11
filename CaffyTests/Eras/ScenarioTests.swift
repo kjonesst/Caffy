@@ -9,7 +9,7 @@ struct ScenarioTests {
         scenario.calendar.dateComponents([.day], from: start, to: scenario.cursor).day!
     }
 
-    private static func distance(_ coordinate: Coordinate?, to place: FixturePlace) -> Double? {
+    private static func distance(_ coordinate: Coordinate?, to place: SamplePlace) -> Double? {
         coordinate.map { $0.distance(to: place.coordinate) }
     }
 
@@ -103,8 +103,8 @@ struct ScenarioTests {
 
     @Test func wollongongIsAwayButSydneyNeighbourhoodsAreNot() {
         let radius = EraBuildConfig.standard.placeClusterRadius
-        #expect(FixturePlace.wollongong.coordinate.distance(to: FixturePlace.sydney.coordinate) > radius)
-        #expect(FixturePlace.spread * 2 < radius)
+        #expect(SamplePlace.wollongong.coordinate.distance(to: SamplePlace.sydney.coordinate) > radius)
+        #expect(SamplePlace.spread * 2 < radius)
     }
 
     // MARK: - Gaps and missing data

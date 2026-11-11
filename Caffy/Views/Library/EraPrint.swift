@@ -7,6 +7,15 @@ struct EraPrint: View {
     let action: () -> Void
 
     var body: some View {
+        // A sync can delete this era while it's on screen. Draw nothing for
+        // the one redraw before the list drops it (see `isLive`).
+        if era.isLive {
+            content
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 0) {
                 PhotoPlaceholder(seed: era.title)

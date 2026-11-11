@@ -14,7 +14,7 @@ struct HomeInferenceTests {
     /// The fixture city a cluster sits in, for readable expectations.
     private static func name(_ cluster: PlaceCluster?) -> String? {
         guard let cluster else { return nil }
-        let places: [FixturePlace] = [.sydney, .melbourne, .hobart, .wollongong]
+        let places: [SamplePlace] = [.sydney, .melbourne, .hobart, .wollongong]
         return places.first { $0.coordinate.distance(to: cluster.centre) < 10_000 }?.name
     }
 
@@ -40,7 +40,7 @@ struct HomeInferenceTests {
         let timeline = Self.timeline(Scenario())
         #expect(timeline.clusters.isEmpty)
         #expect(timeline.home(on: .now) == nil)
-        #expect(timeline.isHome(FixturePlace.hobart.coordinate, on: .now))
+        #expect(timeline.isHome(SamplePlace.hobart.coordinate, on: .now))
     }
 
     @Test func unlocatedPhotosMeanNoHome() {
@@ -83,7 +83,7 @@ struct HomeInferenceTests {
         #expect(Self.residenceNames(timeline) == ["Sydney"])
         for moment in scenario.moments {
             let coordinate = moment.coordinate!
-            let inSydney = coordinate.distance(to: FixturePlace.sydney.coordinate) < 10_000
+            let inSydney = coordinate.distance(to: SamplePlace.sydney.coordinate) < 10_000
             #expect(Self.name(timeline.home(on: moment.start)) == "Sydney")
             #expect(timeline.isHome(coordinate, on: moment.start) == inSydney)
         }
@@ -97,7 +97,7 @@ struct HomeInferenceTests {
 
         #expect(Self.residenceNames(timeline) == ["Sydney"])
         #expect(Self.name(timeline.home(on: tripDay)) == "Sydney")
-        #expect(!timeline.isHome(FixturePlace.wollongong.coordinate, on: tripDay))
+        #expect(!timeline.isHome(SamplePlace.wollongong.coordinate, on: tripDay))
     }
 
     // MARK: - Moving
@@ -118,8 +118,8 @@ struct HomeInferenceTests {
         // Going back to Sydney for a weekend mid-semester is a trip.
         let weekend = Self.noon(after: firstHalf, plus: 1)
         #expect(Self.name(timeline.home(on: weekend)) == "Melbourne")
-        #expect(!timeline.isHome(FixturePlace.sydney.coordinate, on: weekend))
-        #expect(timeline.isHome(FixturePlace.melbourne.coordinate, on: weekend))
+        #expect(!timeline.isHome(SamplePlace.sydney.coordinate, on: weekend))
+        #expect(timeline.isHome(SamplePlace.melbourne.coordinate, on: weekend))
     }
 
     @Test func shortStayElsewhereIsNotHome() {
@@ -130,7 +130,7 @@ struct HomeInferenceTests {
 
         #expect(Self.residenceNames(timeline) == ["Sydney"])
         #expect(Self.name(timeline.home(on: stay)) == "Sydney")
-        #expect(!timeline.isHome(FixturePlace.melbourne.coordinate, on: stay))
+        #expect(!timeline.isHome(SamplePlace.melbourne.coordinate, on: stay))
     }
 
     @Test(arguments: [(27, ["Sydney"]), (28, ["Sydney", "Melbourne", "Sydney"])])
@@ -182,7 +182,7 @@ struct HomeInferenceTests {
 
     // MARK: - Days
 
-    private static func moment(_ id: String, at date: Date, in place: FixturePlace) -> PhotoMoment {
+    private static func moment(_ id: String, at date: Date, in place: SamplePlace) -> PhotoMoment {
         PhotoMoment(id: id, start: date, end: date, photoIDs: [id], coverID: id, coverAspectRatio: 1, coordinate: place.coordinate)
     }
 
@@ -198,7 +198,7 @@ struct HomeInferenceTests {
         #expect(timeline.days.count == 1)
         #expect(Self.name(timeline.clusters[day.clusterID]) == "Melbourne")
         // Sydney was only passed through, so it isn't a place of its own.
-        #expect(timeline.cluster(containing: FixturePlace.sydney.coordinate) == nil)
+        #expect(timeline.cluster(containing: SamplePlace.sydney.coordinate) == nil)
     }
 
     @Test func daysFollowTheLocalCalendar() {
@@ -235,7 +235,8 @@ struct HomeInferenceTests {
             timeline = HomeInference.infer(scenario.moments, calendar: scenario.calendar)
         }
         #expect(timeline?.residences.count == 1)
-        // Generous, because tests run as an unoptimised Debug build.
-        #expect(elapsed < .milliseconds(500))
+        // About 0.15 s on its own in a Debug build. Tests run in parallel and
+        // can be several times slower, so this only catches real regressions.
+        #expect(elapsed < .milliseconds(1_500))
     }
 }

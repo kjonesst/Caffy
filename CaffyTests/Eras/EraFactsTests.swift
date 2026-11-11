@@ -17,7 +17,7 @@ struct EraFactsTests {
     }
 
     /// Runs the pipeline so far: home, segment, names, facts, templates.
-    private static func build(_ scenario: Scenario, namer: some PlaceNamer = FixturePlaceNamer()) async -> Built {
+    private static func build(_ scenario: Scenario, namer: some PlaceNamer = SamplePlaceNamer()) async -> Built {
         let home = HomeInference.infer(scenario.moments, calendar: scenario.calendar)
         let drafts = EraSegmenter.segment(scenario.moments, plays: scenario.plays, home: home, now: scenario.now, calendar: scenario.calendar)
         let names = await EraFacts.placeNames(for: drafts, moments: scenario.moments, home: home, namer: namer)
@@ -144,7 +144,7 @@ struct EraFactsTests {
         let lookups: Lookups
         func name(for coordinate: Coordinate) async -> PlaceName? {
             await lookups.record(coordinate)
-            return await FixturePlaceNamer().name(for: coordinate)
+            return await SamplePlaceNamer().name(for: coordinate)
         }
     }
 

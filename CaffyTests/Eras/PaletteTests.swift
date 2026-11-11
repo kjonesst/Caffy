@@ -12,7 +12,7 @@ struct PaletteTests {
     private static let green: UInt32 = 0x4F8A3A
 
     private static func swatches(_ hex: UInt32) -> [Swatch] {
-        ColorQuantizer.swatches(in: FixtureImages.solid(hex))
+        ColorQuantizer.swatches(in: SampleImages.solid(hex))
     }
 
     private static func photo(_ hex: UInt32, weight: Double = 1) -> PaletteBuilder.PhotoSample {
@@ -92,20 +92,20 @@ struct PaletteTests {
     }
 
     @Test func twoColoursSplitTheWeight() {
-        let found = ColorQuantizer.swatches(in: FixtureImages.stripes([(Self.orange, 48), (Self.blue, 16)]))
+        let found = ColorQuantizer.swatches(in: SampleImages.stripes([(Self.orange, 48), (Self.blue, 16)]))
         #expect(found.map(\.weight) == [0.75, 0.25])
         #expect(found[0].color.distance(to: Self.oklab(Self.orange)) < 1e-9)
     }
 
     @Test func transparentPixelsAreIgnored() {
-        let mostlyClear = ColorQuantizer.swatches(in: FixtureImages.stripes([(nil, 48), (Self.blue, 16)]))
-        let allClear = ColorQuantizer.swatches(in: FixtureImages.stripes([(nil, 64)]))
+        let mostlyClear = ColorQuantizer.swatches(in: SampleImages.stripes([(nil, 48), (Self.blue, 16)]))
+        let allClear = ColorQuantizer.swatches(in: SampleImages.stripes([(nil, 64)]))
         #expect(mostlyClear.map(\.weight) == [1])
         #expect(allClear.isEmpty)
     }
 
     @Test func nearbyShadesShareASwatch() {
-        let found = ColorQuantizer.swatches(in: FixtureImages.stripes([(0xE07A2E, 32), (0xE27C30, 32)]))
+        let found = ColorQuantizer.swatches(in: SampleImages.stripes([(0xE07A2E, 32), (0xE27C30, 32)]))
         #expect(found.count == 1)
     }
 
@@ -124,7 +124,7 @@ struct PaletteTests {
     @Test func commonAndVividBeatsRareOrDull() {
         // A beige wall covers most of the photo, but the orange is far more vivid.
         let photo = PaletteBuilder.PhotoSample(
-            swatches: ColorQuantizer.swatches(in: FixtureImages.stripes([(0xC8B8A0, 48), (Self.orange, 16)])),
+            swatches: ColorQuantizer.swatches(in: SampleImages.stripes([(0xC8B8A0, 48), (Self.orange, 16)])),
             weight: 1
         )
         let paper = RGBColor(hex: PaletteBuilder.palette(photos: [photo], fallbackKey: "era").paperHex).oklab
@@ -162,7 +162,7 @@ struct PaletteTests {
 
     @Test func paletteDiffersFromThePreviousEra() {
         let photo = PaletteBuilder.PhotoSample(
-            swatches: ColorQuantizer.swatches(in: FixtureImages.stripes([(Self.orange, 44), (Self.teal, 20)])),
+            swatches: ColorQuantizer.swatches(in: SampleImages.stripes([(Self.orange, 44), (Self.teal, 20)])),
             weight: 1
         )
         let alone = PaletteBuilder.palette(photos: [photo], fallbackKey: "era")
@@ -201,7 +201,7 @@ struct PaletteTests {
             let hex = UInt32(random.int(in: 0...0xFFFFFF))
             let second = UInt32(random.int(in: 0...0xFFFFFF))
             let photo = PaletteBuilder.PhotoSample(
-                swatches: ColorQuantizer.swatches(in: FixtureImages.stripes([(hex, 40), (second, 24)])),
+                swatches: ColorQuantizer.swatches(in: SampleImages.stripes([(hex, 40), (second, 24)])),
                 weight: 1
             )
             let palette = PaletteBuilder.palette(photos: [photo], fallbackKey: "m\(hex)")
@@ -223,13 +223,13 @@ struct PaletteTests {
     }
 
     /// Green photos at home in Sydney, blue ones in Melbourne.
-    private static func weekendColours(_ scenario: Scenario) -> FixtureColorSampler {
+    private static func weekendColours(_ scenario: Scenario) -> SampleColorSampler {
         var colors: [String: UInt32] = [:]
         for moment in scenario.moments {
-            let inMelbourne = moment.coordinate.map { $0.distance(to: FixturePlace.melbourne.coordinate) < 25_000 } ?? false
+            let inMelbourne = moment.coordinate.map { $0.distance(to: SamplePlace.melbourne.coordinate) < 25_000 } ?? false
             colors[moment.coverID] = inMelbourne ? Self.blue : Self.green
         }
-        return FixtureColorSampler(colors: colors)
+        return SampleColorSampler(colors: colors)
     }
 
     @Test func erasTakeTheirColoursFromTheirOwnPhotos() async throws {
@@ -254,7 +254,7 @@ struct PaletteTests {
         let scenario = Scenario().live(at: .sydney, days: 30)
         let home = HomeInference.infer(scenario.moments, calendar: scenario.calendar)
         let drafts = EraSegmenter.segment(scenario.moments, home: home, now: scenario.now, calendar: scenario.calendar)
-        let palettes = await PaletteBuilder.palettes(for: drafts, moments: scenario.moments, sampler: FixtureColorSampler(colors: [:]))
+        let palettes = await PaletteBuilder.palettes(for: drafts, moments: scenario.moments, sampler: SampleColorSampler(colors: [:]))
         #expect(palettes.values.allSatisfy { EraPalette.presets.contains($0) })
     }
 }

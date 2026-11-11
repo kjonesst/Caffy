@@ -1,8 +1,8 @@
 import Foundation
-@testable import Caffy
 
 /// Builds a made-up stretch of someone's life (photo moments and song plays)
-/// one step at a time, for testing the era pipeline.
+/// one step at a time: the app's sample data, and the era pipeline's test
+/// fixtures.
 ///
 /// Each step returns a new scenario, so steps chain:
 ///
@@ -15,12 +15,20 @@ import Foundation
 /// Everything is deterministic: the same steps and seed always give the same
 /// moments and plays. Days are calendar days in `calendar`'s time zone
 /// (Sydney by default), so daylight saving is handled like on a real phone.
-struct Scenario {
+nonisolated struct Scenario: Sendable {
     /// One artist the user is listening to, and how much.
-    struct Habit {
+    struct Habit: Sendable {
         let artist: String
         let genre: String
         let perDay: Int
+        /// The artist's song titles. Empty gives three generic tracks.
+        var titles: [String] = []
+
+        var trackCount: Int { titles.isEmpty ? 3 : titles.count }
+
+        func title(of track: Int) -> String {
+            titles.isEmpty ? "\(artist) Track \(track)" : titles[track - 1]
+        }
     }
 
     let calendar: Calendar
@@ -36,28 +44,38 @@ struct Scenario {
     private var rng: SplitMix64
     private var habits: [Habit] = []
     private var photosHaveLocation = true
+    /// Put in front of every moment and photo id.
+    private let idPrefix: String
 
     static let sydneyTime = TimeZone(identifier: "Australia/Sydney")!
 
     init(year: Int = 2026, month: Int = 2, day: Int = 2, timeZone: TimeZone = sydneyTime, seed: UInt64 = 1) {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
+        self.init(startingOn: calendar.date(from: DateComponents(year: year, month: month, day: day))!, calendar: calendar, seed: seed)
+    }
+
+    /// A scenario starting at midnight on `date`'s day in `calendar`.
+    /// `idPrefix` goes in front of every moment and photo id, so sample
+    /// photos can never be mistaken for real PhotoKit ones.
+    init(startingOn date: Date, calendar: Calendar, seed: UInt64 = 1, idPrefix: String = "") {
         self.calendar = calendar
-        start = calendar.date(from: DateComponents(year: year, month: month, day: day))!
+        start = calendar.startOfDay(for: date)
         cursor = start
         rng = SplitMix64(seed: seed)
+        self.idPrefix = idPrefix
     }
 
     /// The time to run the pipeline at: the end of the last filled-in day.
     var now: Date { cursor }
 
-    var listeningSource: FixtureListeningSource { FixtureListeningSource(events: plays) }
+    var listeningSource: MockListeningSource { MockListeningSource(events: plays) }
 
     // MARK: - Steps
 
     /// Everyday life at `place`. Photos are spread evenly: 3 a week means a
     /// moment on every second or third day; more than 7 means several a day.
-    func live(at place: FixturePlace, days: Int, photosPerWeek: Int = 3) -> Scenario {
+    func live(at place: SamplePlace, days: Int, photosPerWeek: Int = 3) -> Scenario {
         var next = self
         for index in 0..<days {
             let count = (index + 1) * photosPerWeek / 7 - index * photosPerWeek / 7
@@ -68,7 +86,7 @@ struct Scenario {
 
     /// An overnight trip to `place`: leaves in the afternoon of the current
     /// day and comes back in the morning `nights` days later.
-    func trip(to place: FixturePlace, nights: Int, photosPerDay: Int = 3) -> Scenario {
+    func trip(to place: SamplePlace, nights: Int, photosPerDay: Int = 3) -> Scenario {
         precondition(nights >= 1, "A trip has at least one night; use dayTrip for none")
         var next = self
         for night in 0...nights {
@@ -83,7 +101,7 @@ struct Scenario {
     }
 
     /// A day out at `place`, back home the same evening.
-    func dayTrip(to place: FixturePlace, photos: Int = 3) -> Scenario {
+    func dayTrip(to place: SamplePlace, photos: Int = 3) -> Scenario {
         var next = self
         next.fillDay(at: place, moments: photos, hours: 10...17)
         return next
@@ -99,16 +117,16 @@ struct Scenario {
     }
 
     /// From now on, the user listens to this artist only.
-    func listen(to artist: String, genre: String, perDay: Int = 8) -> Scenario {
+    func listen(to artist: String, genre: String, perDay: Int = 8, titles: [String] = []) -> Scenario {
         var next = self
-        next.habits = [Habit(artist: artist, genre: genre, perDay: perDay)]
+        next.habits = [Habit(artist: artist, genre: genre, perDay: perDay, titles: titles)]
         return next
     }
 
     /// From now on, the user also listens to this artist.
-    func alsoListen(to artist: String, genre: String, perDay: Int = 4) -> Scenario {
+    func alsoListen(to artist: String, genre: String, perDay: Int = 4, titles: [String] = []) -> Scenario {
         var next = self
-        next.habits.append(Habit(artist: artist, genre: genre, perDay: perDay))
+        next.habits.append(Habit(artist: artist, genre: genre, perDay: perDay, titles: titles))
         return next
     }
 
@@ -148,7 +166,7 @@ struct Scenario {
 
     // MARK: - Filling in a day
 
-    private mutating func fillDay(at place: FixturePlace?, moments count: Int, hours: ClosedRange<Int>) {
+    private mutating func fillDay(at place: SamplePlace?, moments count: Int, hours: ClosedRange<Int>) {
         if let place, count > 0 {
             addMoments(count, at: place, hours: hours)
         }
@@ -159,7 +177,7 @@ struct Scenario {
     /// Adds `count` moments on the current day. The hours are split into equal
     /// slots and each moment lands somewhere in its own slot, so moments on
     /// the same day never overlap.
-    private mutating func addMoments(_ count: Int, at place: FixturePlace, hours: ClosedRange<Int>) {
+    private mutating func addMoments(_ count: Int, at place: SamplePlace, hours: ClosedRange<Int>) {
         let first = time(hour: hours.lowerBound)
         let last = time(hour: hours.upperBound)
         let slot = last.timeIntervalSince(first) / Double(count)
@@ -174,12 +192,12 @@ struct Scenario {
                 .addingTimeInterval(rng.double(in: 0...latestStart))
                 .rounded(toSeconds: 1)
 
-            let id = String(format: "m%04d", moments.count + 1)
+            let id = idPrefix + String(format: "m%04d", moments.count + 1)
             let photoIDs = (1...photoCount).map { "\(id)-p\($0)" }
             let coordinate = photosHaveLocation
                 ? place.offset(
-                    north: rng.double(in: -FixturePlace.spread...FixturePlace.spread),
-                    east: rng.double(in: -FixturePlace.spread...FixturePlace.spread)
+                    north: rng.double(in: -SamplePlace.spread...SamplePlace.spread),
+                    east: rng.double(in: -SamplePlace.spread...SamplePlace.spread)
                 )
                 : nil
 
@@ -206,7 +224,7 @@ struct Scenario {
         for habit in habits where habit.perDay > 0 {
             let slot = last.timeIntervalSince(first) / Double(habit.perDay)
             for index in 0..<habit.perDay {
-                let track = rng.int(in: 1...3)
+                let track = rng.int(in: 1...habit.trackCount)
                 let length = rng.double(in: 180...300).rounded()
                 let playStart = first
                     .addingTimeInterval(Double(index) * slot)
@@ -214,7 +232,7 @@ struct Scenario {
                     .rounded(toSeconds: 1)
                 let song = Song(
                     id: Self.songID(artist: habit.artist, track: track),
-                    title: "\(habit.artist) Track \(track)",
+                    title: habit.title(of: track),
                     artist: habit.artist,
                     genre: habit.genre
                 )
@@ -231,7 +249,7 @@ struct Scenario {
     }
 }
 
-private extension Date {
+nonisolated private extension Date {
     /// Drops fractions of a second, so fixture dates print and compare cleanly.
     func rounded(toSeconds seconds: TimeInterval) -> Date {
         Date(timeIntervalSinceReferenceDate: (timeIntervalSinceReferenceDate / seconds).rounded(.down) * seconds)

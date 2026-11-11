@@ -87,8 +87,9 @@ final class Era {
     }
 
     /// SwiftData doesn't keep to-many relationships in any order, so sort here.
+    /// Moments a sync has just deleted are left out (see `isLive`).
     var momentsNewestFirst: [Moment] {
-        moments.sorted { $0.date > $1.date }
+        moments.filter(\.isLive).sorted { $0.date > $1.date }
     }
 
     /// Every song from this era's moments, newest moment first, without repeats.

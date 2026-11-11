@@ -182,7 +182,7 @@ struct ScenarioTableTests {
             .live(at: .sydney, days: 90)
             .gap(days: 30)
             .live(at: .melbourne, days: 40)
-        let pipeline = EraPipeline(namer: FixturePlaceNamer(), sampler: PipelineHarness.sampler(for: scenario.moments))
+        let pipeline = EraPipeline(namer: SamplePlaceNamer(), sampler: PipelineHarness.sampler(for: scenario.moments))
         let forward = await pipeline.run(moments: scenario.moments, plays: scenario.plays, now: scenario.now, calendar: scenario.calendar)
 
         var random = SplitMix64(seed: 3)

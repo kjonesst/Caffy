@@ -1,12 +1,12 @@
 import Foundation
 
-/// A tiny seeded random number generator for fixtures.
+/// A tiny seeded random number generator for sample data and test fixtures.
 ///
 /// The same seed always gives the same numbers, on every device and Swift
 /// version. The helpers below do their own maths instead of using
 /// `Double.random(in:using:)`, whose exact output the standard library
 /// doesn't promise to keep.
-struct SplitMix64 {
+nonisolated struct SplitMix64: Sendable {
     private var state: UInt64
 
     init(seed: UInt64) {

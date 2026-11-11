@@ -22,6 +22,15 @@ struct EraCard: View {
     }
 
     var body: some View {
+        // A sync can delete this era while it's on screen. Draw nothing for
+        // the one redraw before the list drops it (see `isLive`).
+        if era.isLive {
+            content
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         // Sorted once per update and shared by the collage and the songs.
         let moments = era.momentsNewestFirst
 

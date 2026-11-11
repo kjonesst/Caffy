@@ -1,16 +1,15 @@
 import Foundation
-@testable import Caffy
 
-/// A city that fixture photos are taken in.
-struct FixturePlace: Hashable {
+/// A city that sample and test photos are taken in.
+nonisolated struct SamplePlace: Hashable, Sendable {
     let name: String
     let coordinate: Coordinate
 
-    static let sydney = FixturePlace(name: "Sydney", coordinate: Coordinate(latitude: -33.8688, longitude: 151.2093))
-    static let melbourne = FixturePlace(name: "Melbourne", coordinate: Coordinate(latitude: -37.8136, longitude: 144.9631))
-    static let hobart = FixturePlace(name: "Hobart", coordinate: Coordinate(latitude: -42.8821, longitude: 147.3272))
+    static let sydney = SamplePlace(name: "Sydney", coordinate: Coordinate(latitude: -33.8688, longitude: 151.2093))
+    static let melbourne = SamplePlace(name: "Melbourne", coordinate: Coordinate(latitude: -37.8136, longitude: 144.9631))
+    static let hobart = SamplePlace(name: "Hobart", coordinate: Coordinate(latitude: -42.8821, longitude: 147.3272))
     /// About 70 km from Sydney: far enough to be "away", close enough for a day trip.
-    static let wollongong = FixturePlace(name: "Wollongong", coordinate: Coordinate(latitude: -34.4278, longitude: 150.8931))
+    static let wollongong = SamplePlace(name: "Wollongong", coordinate: Coordinate(latitude: -34.4278, longitude: 150.8931))
 
     /// How far, in metres, photos in one city spread from its centre. Well
     /// inside `EraBuildConfig.placeClusterRadius`.
