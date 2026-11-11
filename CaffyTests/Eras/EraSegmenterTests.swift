@@ -263,11 +263,12 @@ struct EraSegmenterTests {
     // MARK: - Moving home
 
     @Test func exchangeSemesterMovesHomeAndBack() {
+        // Kept under `maxEraLength`, so only the hard cuts show here.
         let scenario = Scenario()
             .live(at: .sydney, days: 60)
-            .live(at: .melbourne, days: 60)
+            .live(at: .melbourne, days: 50)
             .trip(to: .sydney, nights: 2)
-            .live(at: .melbourne, days: 60)
+            .live(at: .melbourne, days: 50)
             .live(at: .sydney, days: 60)
         let drafts = Self.eras(scenario)
 

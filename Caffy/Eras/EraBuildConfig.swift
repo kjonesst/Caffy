@@ -59,18 +59,25 @@ nonisolated struct EraBuildConfig: Sendable, Equatable {
     /// A home era longer than this is cut at its best candidate point.
     var maxEraLength: TimeInterval = 120 * 24 * 60 * 60
     /// How much listening on each side of a candidate cut is compared to
-    /// measure a change in music.
+    /// measure a change in music. Rounded to whole local days.
     var musicWindow: TimeInterval = 21 * 24 * 60 * 60
     /// Each side of a candidate cut needs at least this many plays before a
     /// change in music can count. Below that, music is treated as unchanged.
     var musicMinPlays: Int = 10
     /// How much a change in music counts when scoring a candidate cut.
-    var musicChangeWeight: Double = 0.6
-    /// How much the length of the photo gap counts when scoring a candidate cut.
-    var gapWeight: Double = 0.4
+    var musicChangeWeight: Double = 0.8
+    /// How much the length of the photo gap counts when scoring a candidate
+    /// cut (a gap of `longGap` counts fully).
+    var gapWeight: Double = 0.2
     /// A candidate cut scoring at least this much is made even when the era
-    /// isn't too long yet.
-    var strongCutScore: Double = 0.7
+    /// isn't too long yet. Gaps alone can reach at most `gapWeight`, so only
+    /// a clear change in music gets here.
+    var strongCutScore: Double = 0.6
+    /// When an era is too long and must be cut, how much a cut that leaves
+    /// the earlier part close to `targetEraLength` is preferred. Without it,
+    /// a stretch with steady music would be cut wherever photos happened to
+    /// be a few hours further apart.
+    var targetLengthWeight: Double = 0.2
 
     // MARK: - Stability
 

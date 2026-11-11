@@ -34,6 +34,9 @@ struct EraBuildConfigTests {
     @Test func cutScoreWeightsAddUpToOne() {
         #expect(abs(config.musicChangeWeight + config.gapWeight - 1) < 1e-9)
         #expect(config.strongCutScore > 0 && config.strongCutScore <= 1)
+        // A gap alone must never make a strong cut, only a change in music.
+        #expect(config.gapWeight < config.strongCutScore)
+        #expect(config.musicChangeWeight >= config.strongCutScore)
     }
 
     @Test func matchDecayIsValid() {
