@@ -39,7 +39,7 @@ nonisolated struct EraFacts: Equatable, Sendable {
     var isCurrent: Bool { end == nil }
 }
 
-extension EraFacts {
+nonisolated extension EraFacts {
     /// Gathers the facts for every draft, in the same order.
     ///
     /// `names` maps place cluster ids (see `HomeTimeline.clusters`) to their

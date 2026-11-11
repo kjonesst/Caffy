@@ -91,7 +91,7 @@ nonisolated struct EraPipeline: Sendable {
     }
 }
 
-extension BuiltEra {
+nonisolated extension BuiltEra {
     /// This era as it should be saved once frozen.
     var frozen: FrozenEra {
         FrozenEra(draft: draft, content: content, palette: palette)

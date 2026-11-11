@@ -1,7 +1,7 @@
 import Foundation
 
 /// A human name for a place, such as "Melbourne".
-nonisolated struct PlaceName: Hashable, Sendable {
+nonisolated struct PlaceName: Codable, Hashable, Sendable {
     /// The town or city.
     let locality: String
     var region: String? = nil
