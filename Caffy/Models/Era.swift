@@ -5,8 +5,29 @@ import SwiftData
 ///
 /// Eras are Caffy's main unit: Home shows one card per era, Library places each
 /// one on the genre river, and each era owns one self-updating playlist.
+///
+/// Fields added after the first release are optional or have a default, so
+/// an existing database gains them on its own when the app updates.
 @Model
 final class Era {
+    /// The id of the `EraDraft` this was saved from, so the next sync can find
+    /// it again. `nil` for sample data.
+    var eraID: String?
+
+    /// `EraKind`'s raw value. Saved as text rather than the enum, so adding
+    /// kinds later never stops an existing database from opening. Use `kind`.
+    var kindRaw: String = "home"
+
+    /// Frozen eras are never re-cut, renamed or recoloured again.
+    var isFrozen: Bool = false
+
+    /// `EraBoundaryReason`'s raw value: why the era starts where it does.
+    var startReasonRaw: String?
+
+    /// The middle of the era's place: home, or a trip's main destination.
+    var centreLatitude: Double?
+    var centreLongitude: Double?
+
     var title: String
 
     /// The short handwritten label on the card, such as "2026" or "way back".
@@ -60,6 +81,11 @@ final class Era {
 
     var isCurrent: Bool { endDate == nil }
 
+    var kind: EraKind {
+        get { EraKind(rawValue: kindRaw) ?? .home }
+        set { kindRaw = newValue.rawValue }
+    }
+
     /// SwiftData doesn't keep to-many relationships in any order, so sort here.
     var momentsNewestFirst: [Moment] {
         moments.sorted { $0.date > $1.date }
@@ -83,4 +109,55 @@ final class Era {
             .flatMap(\.songs)
             .filter { seenIDs.insert($0.id).inserted }
     }
+}
+
+extension Era {
+    /// Copies an era worked out by the pipeline, except its moments and playlist.
+    func update(from built: BuiltEra) {
+        let draft = built.draft
+        eraID = draft.id
+        kind = draft.kind
+        isFrozen = built.isFrozen
+        startReasonRaw = draft.startReason.rawValue
+        centreLatitude = draft.centre?.latitude
+        centreLongitude = draft.centre?.longitude
+        title = built.content.title
+        whenLabel = built.content.whenLabel
+        summary = built.content.summary
+        startDate = draft.start
+        endDate = draft.end
+        palette = built.palette
+    }
+
+    /// This era as the pipeline needs it once frozen, or `nil` for an era the
+    /// pipeline didn't make (sample data).
+    var frozen: FrozenEra? {
+        guard let eraID else { return nil }
+        let centre = both(centreLatitude, centreLongitude).map { Coordinate(latitude: $0, longitude: $1) }
+        // Oldest first with the id breaking ties, the pipeline's own order.
+        let momentIDs = moments
+            .compactMap { moment in moment.momentID.map { (date: moment.date, id: $0) } }
+            .sorted { ($0.date, $0.id) < ($1.date, $1.id) }
+            .map(\.id)
+        let draft = EraDraft(
+            id: eraID,
+            kind: kind,
+            momentIDs: momentIDs,
+            start: startDate,
+            end: endDate,
+            centre: centre,
+            startReason: startReasonRaw.flatMap(EraBoundaryReason.init(rawValue:)) ?? .firstMoment
+        )
+        return FrozenEra(
+            draft: draft,
+            content: EraContent(title: title, summary: summary, whenLabel: whenLabel),
+            palette: palette
+        )
+    }
+}
+
+/// Both values, or `nil` if either is missing.
+private func both<A, B>(_ a: A?, _ b: B?) -> (A, B)? {
+    guard let a, let b else { return nil }
+    return (a, b)
 }

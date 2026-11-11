@@ -207,7 +207,9 @@ struct ScenarioTableTests {
         let elapsed = ContinuousClock.now - start
 
         #expect(result.kinds.filter { $0 == .trip }.count == 40)
-        // Generous, because tests run as an unoptimised Debug build.
-        #expect(elapsed < .seconds(2))
+        // About 0.6 s on its own in a Debug build, but tests run in parallel
+        // and the full suite has slowed it to over 2 s, so the limit only
+        // catches real regressions.
+        #expect(elapsed < .seconds(5))
     }
 }
