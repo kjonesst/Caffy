@@ -30,6 +30,12 @@ struct EraBuildConfigTests {
         #expect(config.strongCutScore > 0 && config.strongCutScore <= 1)
     }
 
+    @Test func matchDecayIsValid() {
+        #expect(config.matchDecayHalfLife > 0)
+        #expect(config.matchDecayCutoff >= config.matchDecayHalfLife)
+        #expect(config.maxSongsPerMoment > 0)
+    }
+
     @Test func paletteRangesAreValid() {
         #expect(config.paperLightness.lowerBound > 0 && config.paperLightness.upperBound < 1)
         #expect(config.paperChroma.lowerBound > 0)

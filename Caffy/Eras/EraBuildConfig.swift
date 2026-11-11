@@ -14,6 +14,9 @@ nonisolated struct EraBuildConfig: Sendable, Equatable {
     var matchWindowAfter: TimeInterval = 30 * 60
     /// Plays just outside the window still count, halving in weight every this long.
     var matchDecayHalfLife: TimeInterval = 30 * 60
+    /// Plays further than this outside the window don't count at all
+    /// (four half-lives, where the weight has dropped to 1/16).
+    var matchDecayCutoff: TimeInterval = 2 * 60 * 60
     /// The most songs a single moment keeps.
     var maxSongsPerMoment: Int = 8
     /// When nothing plays near a moment, fall back to songs from the same day,
