@@ -37,6 +37,7 @@ nonisolated struct MatchedMoment: Hashable, Sendable, Identifiable {
 ///
 /// Plays carry no location, so place plays no part here. An era's music
 /// overall comes from every play in its dates, not just the matched ones.
+/// Plays that aren't `isMatchable` are skipped here, but still count there.
 nonisolated enum MusicMatcher {
     /// Matches songs to every moment. Returns moments oldest first.
     static func match(
@@ -46,7 +47,7 @@ nonisolated enum MusicMatcher {
         config: EraBuildConfig = .standard
     ) -> [MatchedMoment] {
         let sortedMoments = moments.sorted { ($0.start, $0.id) < ($1.start, $1.id) }
-        let index = PlayIndex(plays)
+        let index = PlayIndex(plays.filter(\.isMatchable))
 
         return sortedMoments.map { moment in
             let window = DateInterval(

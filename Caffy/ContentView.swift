@@ -44,10 +44,17 @@ struct ContentView: View {
                 Task { await showEras() }
             }
         }
-        // The user may have changed access in Settings while away.
+        // The user may have changed access in Settings while away, and has
+        // probably listened to something. Each read of the music library
+        // narrows down when those plays happened, so record on every return,
+        // and sync if anything new was played.
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 Task { await permissions.refresh() }
+                Task {
+                    guard let librarySync, let summary = await librarySync.recordListening(), summary.newPlays > 0 else { return }
+                    await librarySync.sync()
+                }
             }
         }
     }

@@ -16,8 +16,8 @@ enum LibrarySyncOutcome: Equatable {
 
 /// Keeps the saved eras in step with the user's photo library.
 ///
-/// One sync: read every photo → group into moments → fetch listening →
-/// run the era pipeline (with saved frozen eras) → save. The pipeline and
+/// One sync: read every photo → group into moments → record new listening →
+/// fetch listening → run the era pipeline (with saved frozen eras) → save. The pipeline and
 /// the photo reading run off the main actor; reading and saving the database
 /// happens here, on it.
 ///
@@ -29,6 +29,7 @@ final class LibrarySync {
     private let context: ModelContext
     private let reader: any PhotoLibraryReader
     private let listening: any ListeningSource
+    private let recorder: ListeningRecorder?
     private let pipeline: EraPipeline
     private let calendar: Calendar
     private let now: () -> Date
@@ -43,6 +44,7 @@ final class LibrarySync {
         context: ModelContext,
         reader: any PhotoLibraryReader,
         listening: any ListeningSource,
+        recorder: ListeningRecorder? = nil,
         pipeline: EraPipeline,
         calendar: Calendar = .current,
         now: @escaping () -> Date = { .now }
@@ -50,18 +52,21 @@ final class LibrarySync {
         self.context = context
         self.reader = reader
         self.listening = listening
+        self.recorder = recorder
         self.pipeline = pipeline
         self.calendar = calendar
         self.now = now
     }
 
     /// The app's sync: the real photo library, Apple's place names, photo
-    /// colours from thumbnails, and no listening until MusicKit is connected.
+    /// colours from thumbnails, and the listening history Caffy records from
+    /// the music library (none without Apple Music access).
     static func live(context: ModelContext) -> LibrarySync {
         LibrarySync(
             context: context,
             reader: PhotoKitLibraryReader(),
-            listening: MockListeningSource(events: []),
+            listening: RecordedListeningSource(container: context.container),
+            recorder: ListeningRecorder(modelContainer: context.container, reader: MediaPlayerLibraryReader()),
             pipeline: EraPipeline(namer: MapKitPlaceLookup.cachedNamer(), sampler: PhotoKitColorSampler())
         )
     }
@@ -84,10 +89,19 @@ final class LibrarySync {
         return outcome
     }
 
+    /// Records any new plays from the music library, without syncing.
+    /// Returns `nil` without a recorder or music access.
+    @discardableResult
+    func recordListening() async -> RecordSummary? {
+        await recorder?.record(now: now())
+    }
+
     private func syncOnce() async -> LibrarySyncOutcome {
         guard let photos = await reader.photos() else { return .noAccess }
         let moments = await Self.group(photos)
         let now = now()
+        // Before reading plays, so this sync sees everything played so far.
+        await recorder?.record(now: now)
 
         var plays: [ListeningEvent] = []
         if let first = moments.first {

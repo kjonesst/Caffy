@@ -1,4 +1,5 @@
 import Foundation
+import MediaPlayer
 import Photos
 import Testing
 @testable import Caffy
@@ -100,5 +101,28 @@ struct LiveAdapterTests {
             if name != nil { named += 1 }
         }
         #expect(named > 0)
+    }
+
+    /// The real music library through MediaPlayer. Run on an iPhone with
+    /// Apple Music access granted: the simulator has no music library.
+    @Test func mediaPlayerReadsLibrary() async throws {
+        #if targetEnvironment(simulator)
+        Self.note("MediaPlayer: skipped in the simulator")
+        #else
+        let status = MPMediaLibrary.authorizationStatus()
+        Self.note("Media library access: \(status.rawValue)")
+        try #require(status == .authorized, "Grant Apple Music access on the device first")
+
+        let songs = try #require(await MediaPlayerLibraryReader().songs())
+        let now = Date.now
+        var ages: [ListeningCoverage.Age: Int] = [:]
+        for date in songs.compactMap(\.lastPlayedDate) {
+            ages[ListeningCoverage.Age.of(date, now: now), default: 0] += 1
+        }
+        Self.note("Library songs: \(songs.count), with a last-played date: \(songs.count { $0.lastPlayedDate != nil })")
+        Self.note("Without a catalog id (empty or \"0\"): \(songs.count { $0.catalogID == nil })")
+        Self.note("Last played: " + ListeningCoverage.Age.allCases.map { "\($0.label) \(ages[$0] ?? 0)" }.joined(separator: ", "))
+        #expect(!songs.isEmpty)
+        #endif
     }
 }

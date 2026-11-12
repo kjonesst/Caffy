@@ -8,10 +8,7 @@ import SwiftUI
 struct SampleDataPreview: PreviewModifier {
     static func makeSharedContext() async throws -> ModelContainer {
         Theme.registerFonts()
-        let container = try ModelContainer(
-            for: Era.self, Moment.self, Place.self, CaffyPlaylist.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-        )
+        let container = try CaffyStore.makeContainer(inMemory: true)
         try await SampleData.insert(into: container.mainContext)
         return container
     }

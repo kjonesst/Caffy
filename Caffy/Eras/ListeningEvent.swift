@@ -10,12 +10,17 @@ nonisolated struct ListeningEvent: Hashable, Sendable {
     let song: Song
     let interval: DateInterval
     var isEstimated: Bool = false
+    /// `false` for an estimated play whose window is too long to say which
+    /// moment it belongs to (longer than `EraBuildConfig.maxEstimatedPlayWindow`).
+    /// It still counts towards listening totals, but `MusicMatcher` skips it.
+    var isMatchable: Bool = true
 }
 
 /// Where Caffy gets the user's listening history from.
 ///
 /// The era pipeline only talks to this protocol, so a fixture or mock source
-/// (now) can be swapped for a MusicKit one (later) without changing the logic.
+/// (tests, sample data) and the real ones (`RecordedListeningSource`,
+/// `MediaPlayerListeningSource`) are interchangeable.
 ///
 /// `nonisolated` and `Sendable` let the pipeline call it off the main actor.
 nonisolated protocol ListeningSource: Sendable {

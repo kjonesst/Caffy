@@ -200,6 +200,35 @@ struct LibrarySyncTests {
 
     // MARK: - Frozen eras with no photos
 
+    // MARK: - Listening
+
+    @Test func syncRecordsListeningAndMatchesItToMoments() async throws {
+        let container = try CaffyStore.makeContainer(inMemory: true)
+        let context = container.mainContext
+        let moment = try #require(Self.library.moments.first)
+        let music = FakeMusicLibrary([
+            LibrarySongSnapshot(persistentID: 1, catalogID: "42", title: "Borderline", artist: "Tame Impala", lastPlayedDate: moment.start, playCount: 3)
+        ])
+        let now = Self.library.now
+        let sync = LibrarySync(
+            context: context,
+            reader: FixedLibrary(items: Self.photos(Self.library)),
+            listening: RecordedListeningSource(container: container),
+            recorder: ListeningRecorder(modelContainer: container, reader: music),
+            pipeline: EraPipeline(namer: SamplePlaceNamer(), sampler: SampleColorSampler(colors: [:])),
+            calendar: Self.library.calendar,
+            now: { now }
+        )
+
+        _ = await sync.sync()
+
+        #expect(try context.fetchCount(FetchDescriptor<RecordedPlay>()) == 1)
+        // A synced moment is named after its first photo.
+        let id = try #require(moment.photoIDs.first)
+        let saved = try #require(try context.fetch(FetchDescriptor<Moment>(predicate: #Predicate { $0.momentID == id })).first)
+        #expect(saved.songs.map(\.id) == ["42"])
+    }
+
     @Test func frozenErasWithNoPhotosDontHoldABoundary() {
         let scenario = Self.library
         let recent = scenario.now.addingTimeInterval(-20 * 24 * 60 * 60)
