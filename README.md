@@ -23,18 +23,20 @@ Caffy is an iOS companion app for Apple Music. It automatically connects your ph
 - On-device only for the first version. No server unless a concrete need appears.
 - Replaces an earlier React Native/Expo version that used the Spotify Web API.
 - External services sit behind protocols so the app can run on fake data:
-  - `ListeningSource`: fake sample plays now, MusicKit later
+  - `ListeningSource`: Caffy's own recorded history (`RecordedListeningSource`), built from MediaPlayer library reads; sample plays for previews and tests
   - `PlaylistPublishing`: fake logger now, `MusicLibrary` later
 
 ## Status
 
-Early stage. The Home and Library designs are built on sample data, with placeholder photos and cover art. The paid Apple Developer Program membership has not been purchased yet, so MusicKit code can't be run or validated. Until then, the app is built against protocols and fake data.
+Early stage. Eras are built from the real photo library. Listening comes from the `MediaPlayer` framework (`MPMediaQuery`), which needs no developer token and runs with free provisioning. Each time Caffy opens, it reads every library song's `lastPlayedDate` and `playCount`, compares them with the last read, and saves the plays in between (`ListeningRecorder`, `PlayHistoryDiff`). The latest play of a song is exact. Earlier ones are estimates over a time window, and windows longer than three days aren't matched to moments. The paid Apple Developer Program membership has not been purchased yet, so MusicKit code (playlists, catalog artwork) can't be run or validated.
+
+Recorded history lives in its own local store (`ListeningHistoryStore`), apart from the derived eras, so rebuilding eras never loses it. DEBUG builds have **Listening coverage** in the profile button's menu: a report of how many moments real listening covers, with the go/no-go verdict below.
 
 ## Roadmap
 
 1. Read photos with PhotoKit, cluster them by time and distance, and show moment cards.
 2. Use fake listening data to build the matching logic and collage.
-3. After joining the Developer Program, build a debug screen that logs real listening snapshots and compare them with actual listening over several days.
+3. Validate listening snapshots on a real iPhone (built, not yet run on a device): record for two weeks, opening Caffy at least once a day, then read the Listening coverage report. **Pass:** at least 40% of the last 30 days' moments have songs played near them, and 7 of 10 spot-checked matches are right. **Borderline (20–40%):** try background recording first. **Fail (under 20%):** music becomes era-level only (genres and listening profile), and Caffy becomes photo-led. Set the thresholds before recording starts.
 4. Create and edit one test playlist, then connect publishing to moments.
 5. Add `CLVisit`, background work, and notifications.
 
@@ -48,7 +50,10 @@ DEBUG builds have a few shortcuts for working on onboarding: the profile button'
 
 ## Known constraints
 
-- **Listening history:** Apple's recently played data has no play timestamps and is reportedly limited to about 30 items. Caffy has to build its own history by saving snapshots and comparing them (`lastPlayedDate`, `playCount` for library songs; estimated time ranges for others). Plays on other devices may be missed.
+- **Listening history:** Apple's recently played data has no play timestamps and is reportedly limited to about 30 items. Caffy builds its own history by comparing MediaPlayer reads of library songs (`lastPlayedDate`, `playCount`). Only library songs are seen. Catalog songs played without being added are missed, and plays from other devices arrive only as estimates.
+- **Recording needs the app open:** plays are only recorded when Caffy opens, until background recording (`BGAppRefreshTask`) exists. The longer between opens, the vaguer the estimates.
+- **History is per-device:** the listening history store is local and never synced (iCloud Music Library already syncs play counts, so two devices would count each play twice).
+- **Library ids change:** a song's `persistentID` can change after a library reset or an iCloud Music Library resync. Catalog songs keep their id; for others, the next read starts a fresh baseline.
 - **Playlists:** `MusicLibrary.shared.edit` replaces the full track list, and Caffy only edits playlists it created.
 - **Genre river:** The river goes back years, but Caffy can only record listening from the day it's installed. Its widths are sample data until a real source for older history is found.
 - **Location:** The first version uses photo time and location metadata to avoid needing Always location access. `CLVisit` comes later.
@@ -59,9 +64,11 @@ DEBUG builds have a few shortcuts for working on onboarding: the profile button'
 
 - Where does history from before Caffy was installed come from, for older eras and the genre river?
 - How are era boundaries, titles, and summaries generated automatically?
-- Is `lastPlayedDate` reliable enough on current iOS?
+- Is `lastPlayedDate` reliable enough on current iOS? (Testable now on a real iPhone with the Listening coverage report.)
+- Does granting Apple Music access (MusicKit) also authorize `MPMediaLibrary` on a device?
+- How can listening history cover more than one device?
 - Can MusicKit reads and playlist edits run in the background?
 - Does renaming a playlist keep its ID usable for updates?
 - Are there App Review or MusicKit terms issues for a non-playback app that writes to the library?
 
-None of the Apple API behaviour above is verified yet. It needs testing on a real device.
+None of the Apple API behaviour above is verified on a device yet. `LiveAdapterTests/mediaPlayerReadsLibrary` checks the MediaPlayer side when run on an iPhone.

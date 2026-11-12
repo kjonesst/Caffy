@@ -26,20 +26,36 @@ nonisolated struct PhotoKitLibraryReader: PhotoLibraryReader {
         let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         guard status == .authorized || status == .limited else { return nil }
 
-        let assets = PHAsset.fetchAssets(with: .image, options: nil)
+        let assets = Self.fetchImages()
         var items: [PhotoItem] = []
         items.reserveCapacity(assets.count)
         assets.enumerateObjects { asset, _, _ in
-            guard let date = asset.creationDate, !asset.mediaSubtypes.contains(.photoScreenshot) else { return }
-            items.append(PhotoItem(
-                id: asset.localIdentifier,
-                creationDate: date,
-                coordinate: asset.location.map {
-                    Coordinate(latitude: $0.coordinate.latitude, longitude: $0.coordinate.longitude)
-                },
-                aspectRatio: asset.pixelHeight > 0 ? Double(asset.pixelWidth) / Double(asset.pixelHeight) : 1
-            ))
+            if let item = PhotoItem(asset: asset) {
+                items.append(item)
+            }
         }
         return items
+    }
+
+    /// Every image in the library, including the ones `PhotoItem(asset:)`
+    /// skips. The change observer watches this same fetch.
+    static func fetchImages() -> PHFetchResult<PHAsset> {
+        PHAsset.fetchAssets(with: .image, options: nil)
+    }
+}
+
+nonisolated extension PhotoItem {
+    /// The facts Caffy keeps about `asset`, or `nil` for a photo it skips:
+    /// screenshots, and photos with no date.
+    init?(asset: PHAsset) {
+        guard let date = asset.creationDate, !asset.mediaSubtypes.contains(.photoScreenshot) else { return nil }
+        self.init(
+            id: asset.localIdentifier,
+            creationDate: date,
+            coordinate: asset.location.map {
+                Coordinate(latitude: $0.coordinate.latitude, longitude: $0.coordinate.longitude)
+            },
+            aspectRatio: asset.pixelHeight > 0 ? Double(asset.pixelWidth) / Double(asset.pixelHeight) : 1
+        )
     }
 }

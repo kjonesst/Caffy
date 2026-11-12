@@ -22,6 +22,10 @@ nonisolated struct EraBuildConfig: Sendable, Equatable {
     /// When nothing plays near a moment, fall back to songs from the same day,
     /// marked as a loose match.
     var dayFallbackMatching: Bool = true
+    /// Recorded plays only known to fall somewhere in a window longer than
+    /// this (say, the app wasn't opened for weeks) are too vague to match to
+    /// a moment. They still count towards an era's listening.
+    var maxEstimatedPlayWindow: TimeInterval = 3 * 24 * 60 * 60
 
     // MARK: - Home and trips
 

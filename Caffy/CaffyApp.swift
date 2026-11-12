@@ -6,9 +6,17 @@ import SwiftUI
     @AppStorage("hasOnboarded") private var hasOnboarded = false
     /// Apple Music and Photos access, shared by onboarding and the main app.
     @State private var permissions = PermissionsManager.forLaunch()
+    /// The on-device database: eras and moments in one store, recorded
+    /// listening history in another (see `CaffyStore`).
+    private let container: ModelContainer
 
     init() {
         Theme.registerFonts()
+        do {
+            container = try CaffyStore.makeContainer()
+        } catch {
+            fatalError("Couldn't open Caffy's database: \(error)")
+        }
     }
 
     var body: some Scene {
@@ -30,8 +38,7 @@ import SwiftUI
             }
             .environment(permissions)
         }
-        // Creates the on-device database for these models and makes it
-        // available to every view through the environment.
-        .modelContainer(for: [Era.self, Moment.self, Place.self, CaffyPlaylist.self])
+        // Makes the database available to every view through the environment.
+        .modelContainer(container)
     }
 }

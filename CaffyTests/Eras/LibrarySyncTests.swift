@@ -130,6 +130,42 @@ struct LibrarySyncTests {
         #expect(try eras().map(\.persistentModelID) == first)
     }
 
+    /// Set from observation callbacks, which may run on any thread.
+    private nonisolated final class ChangeFlag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var changed = false
+        var value: Bool { lock.withLock { changed } }
+        func set() { lock.withLock { changed = true } }
+    }
+
+    @Test func syncingAnUnchangedLibraryTouchesNothing() async throws {
+        // Every assignment counts as a change to SwiftData, even of an equal
+        // value: the object is saved again and the views showing it redraw.
+        let sync = makeSync(FixedLibrary(items: Self.photos(Self.library)))
+        await sync.sync()
+        let eras = try eras()
+        let moments = try context.fetch(FetchDescriptor<Moment>())
+        #expect(!eras.isEmpty && !moments.isEmpty)
+
+        let changed = ChangeFlag()
+        withObservationTracking {
+            for era in eras {
+                _ = (era.eraID, era.kind, era.isFrozen, era.startReasonRaw, era.centreLatitude, era.centreLongitude)
+                _ = (era.title, era.whenLabel, era.summary, era.startDate, era.endDate, era.palette)
+                _ = (era.playlist?.name, era.playlist?.lastUpdated)
+            }
+            for moment in moments {
+                _ = (moment.momentID, moment.date, moment.endDate, moment.photoAssetIdentifier, moment.photoAspectRatio)
+                _ = (moment.latitude, moment.longitude, moment.songs, moment.era)
+            }
+        } onChange: {
+            changed.set()
+        }
+
+        await sync.sync()
+        #expect(!changed.value)
+    }
+
     @Test func newPhotosJoinTheCurrentEra() async throws {
         await makeSync(FixedLibrary(items: Self.photos(Self.library))).sync()
         let current = try #require(try eras().first { $0.isCurrent })
@@ -163,6 +199,35 @@ struct LibrarySyncTests {
     }
 
     // MARK: - Frozen eras with no photos
+
+    // MARK: - Listening
+
+    @Test func syncRecordsListeningAndMatchesItToMoments() async throws {
+        let container = try CaffyStore.makeContainer(inMemory: true)
+        let context = container.mainContext
+        let moment = try #require(Self.library.moments.first)
+        let music = FakeMusicLibrary([
+            LibrarySongSnapshot(persistentID: 1, catalogID: "42", title: "Borderline", artist: "Tame Impala", lastPlayedDate: moment.start, playCount: 3)
+        ])
+        let now = Self.library.now
+        let sync = LibrarySync(
+            context: context,
+            reader: FixedLibrary(items: Self.photos(Self.library)),
+            listening: RecordedListeningSource(container: container),
+            recorder: ListeningRecorder(modelContainer: container, reader: music),
+            pipeline: EraPipeline(namer: SamplePlaceNamer(), sampler: SampleColorSampler(colors: [:])),
+            calendar: Self.library.calendar,
+            now: { now }
+        )
+
+        _ = await sync.sync()
+
+        #expect(try context.fetchCount(FetchDescriptor<RecordedPlay>()) == 1)
+        // A synced moment is named after its first photo.
+        let id = try #require(moment.photoIDs.first)
+        let saved = try #require(try context.fetch(FetchDescriptor<Moment>(predicate: #Predicate { $0.momentID == id })).first)
+        #expect(saved.songs.map(\.id) == ["42"])
+    }
 
     @Test func frozenErasWithNoPhotosDontHoldABoundary() {
         let scenario = Self.library

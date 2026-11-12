@@ -47,14 +47,15 @@ final class Moment {
 }
 
 extension Moment {
-    /// Copies everything about `moment` except its songs.
+    /// Copies everything about `moment` except its songs. Only what changed
+    /// is set (see `assign`).
     func update(from moment: PhotoMoment) {
-        momentID = moment.id
-        date = moment.start
-        endDate = moment.end
-        photoAssetIdentifier = moment.coverID
-        photoAspectRatio = moment.coverAspectRatio
-        latitude = moment.coordinate?.latitude
-        longitude = moment.coordinate?.longitude
+        assign(moment.id, to: \.momentID)
+        assign(moment.start, to: \.date)
+        assign(moment.end, to: \.endDate)
+        assign(moment.coverID, to: \.photoAssetIdentifier)
+        assign(moment.coverAspectRatio, to: \.photoAspectRatio)
+        assign(moment.coordinate?.latitude, to: \.latitude)
+        assign(moment.coordinate?.longitude, to: \.longitude)
     }
 }

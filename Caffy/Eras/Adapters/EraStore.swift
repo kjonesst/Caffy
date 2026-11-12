@@ -23,7 +23,7 @@ struct EraStore {
     /// Makes the database match `result`.
     ///
     /// - Moments are matched by `momentID` and updated in place. Moments in
-    ///   eras that were already frozen keep their songs.
+    ///   eras that were already frozen keep their songs, unless they had none.
     /// - Eras are matched by `eraID`, or else by sharing the most moments, so
     ///   an era whose first photo changed keeps its object and playlist.
     /// - Eras and moments that are no longer in the result are deleted,
@@ -55,12 +55,16 @@ struct EraStore {
             }
             era.update(from: built)
             for id in built.draft.momentIDs {
-                moments[id]?.era = era
+                // Set only when it moves, like `assign`, so an unchanged
+                // moment isn't saved again.
+                if let moment = moments[id], moment.era !== era {
+                    moment.era = era
+                }
             }
 
             let songIDs = Set(era.songs.map(\.id))
             if let playlist = era.playlist {
-                playlist.name = built.content.title
+                playlist.assign(built.content.title, to: \.name)
                 if songIDs != songIDsBefore[era.persistentModelID] {
                     playlist.lastUpdated = now
                 }
@@ -107,8 +111,12 @@ struct EraStore {
             let songs = result.songs[photo.id] ?? []
             if let moment = existing[photo.id] {
                 moment.update(from: photo)
-                if !lockedEraIDs.contains(eraID) {
-                    moment.songs = songs
+                // A frozen era's songs stay as they are, except that a moment
+                // with none yet may still get some: it may have frozen before
+                // its listening was recorded (or before listening was
+                // connected at all), and would otherwise stay empty for good.
+                if !lockedEraIDs.contains(eraID) || moment.songs.isEmpty {
+                    moment.assign(songs, to: \.songs)
                 }
                 saved[photo.id] = moment
             } else {

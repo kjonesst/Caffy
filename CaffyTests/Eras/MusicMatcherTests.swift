@@ -207,6 +207,12 @@ struct MusicMatcherTests {
         #expect(songs.map(\.song.id) == ["b", "a"])
     }
 
+    @Test func unmatchablePlaysAreSkipped() {
+        var vague = Self.play("a", at: -45, lasting: 75, estimated: true)
+        vague.isMatchable = false
+        #expect(Self.songs(for: Self.moment(), [vague]).isEmpty)
+    }
+
     @Test func duplicatePlaysCountOnce() throws {
         let play = Self.play("a", at: 0)
         let song = try #require(Self.songs(for: Self.moment(), [play, play]).first)

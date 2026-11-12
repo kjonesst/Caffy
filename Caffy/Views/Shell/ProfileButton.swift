@@ -4,15 +4,20 @@ import SwiftUI
 struct ProfileButton: View {
     #if DEBUG
     @AppStorage("hasOnboarded") private var hasOnboarded = true
+    @State private var showsCoverage = false
     #endif
 
     var body: some View {
         #if DEBUG
-        // DEBUG builds only: a menu to see onboarding again. Release builds
+        // DEBUG builds only: a menu to see onboarding again, and to check
+        // how well real listening covers the photo moments. Release builds
         // keep the plain button below.
         Menu {
             Button("Replay onboarding", systemImage: "arrow.counterclockwise") {
                 withAnimation(.easeInOut(duration: 0.4)) { hasOnboarded = false }
+            }
+            Button("Listening coverage", systemImage: "waveform") {
+                showsCoverage = true
             }
         } label: {
             avatar
@@ -20,6 +25,9 @@ struct ProfileButton: View {
         .buttonStyle(.plain)
         .glassEffect(.regular, in: .circle)
         .accessibilityLabel("Profile")
+        .sheet(isPresented: $showsCoverage) {
+            ListeningCoverageView()
+        }
         #else
         // The profile screen isn't designed yet, so this does nothing.
         Button {} label: {

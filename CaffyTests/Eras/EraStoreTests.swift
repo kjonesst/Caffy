@@ -200,6 +200,26 @@ struct EraStoreTests {
         #expect(saved[1].moments.allSatisfy { $0.songs.isEmpty })
     }
 
+    @Test func frozenMomentsWithNoSongsCanStillGetSome() async throws {
+        try await sync(Self.musicShift)
+        let frozenBefore = try #require(try eras().first)
+        #expect(frozenBefore.isFrozen)
+        // As if it froze before its listening was recorded.
+        for moment in frozenBefore.moments {
+            moment.songs = []
+        }
+        try context.save()
+
+        let result = try await sync(Self.musicShift)
+
+        let frozen = try #require(try eras().first)
+        #expect(frozen.isFrozen)
+        #expect(!frozen.songs.isEmpty)
+        for moment in frozen.moments {
+            #expect(moment.songs == result.songs[moment.momentID!] ?? [])
+        }
+    }
+
     // MARK: - Deleting
 
     @Test func erasAndPhotosThatAreGoneAreDeleted() async throws {
