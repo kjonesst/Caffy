@@ -18,9 +18,11 @@ enum SampleData {
 
     /// A year in the life, ending on `now`'s day:
     ///
-    /// 1. Sydney with classic rock, and four nights in Hobart.
+    /// 1. Sydney with classic rock (after a bulk import into the library),
+    ///    and four nights in Hobart, with two folk songs added just before.
     /// 2. Chillout takes over.
-    /// 3. A move to Melbourne with drum & bass, and a weekend back in Sydney.
+    /// 3. A move to Melbourne with drum & bass, an album added whole, and a
+    ///    weekend back in Sydney.
     /// 4. Back in Sydney with trance, a day trip to Wollongong and a
     ///    weekend in Melbourne, up to today.
     ///
@@ -28,9 +30,11 @@ enum SampleData {
     static func library(endingOn now: Date, calendar: Calendar) -> Scenario {
         let start = calendar.date(byAdding: .day, value: -libraryDays, to: calendar.startOfDay(for: now))!
         return Scenario(startingOn: start, calendar: calendar, seed: 2026, idPrefix: idPrefix)
+            .bulkImport(60)
             .listen(to: "Fleetwood Mac", genre: "Classic rock", perDay: 6, titles: ["The Chain", "Dreams", "Landslide"])
             .alsoListen(to: "Chicane", genre: "Trance", perDay: 2, titles: ["Don't Give Up (feat. Bryan Adams)", "Saltwater", "Offshore"])
             .live(at: .sydney, days: 70, photosPerWeek: 4)
+            .addToLibrary(["Big Jet Plane", "Yellow Brick Road"], by: "Angus & Julia Stone", genre: "Folk", plays: 9)
             .trip(to: .hobart, nights: 3)
             .listen(to: "Love Remain", genre: "Chillout", perDay: 4, titles: ["Be With Me"])
             .alsoListen(to: "After Wes", genre: "Chillout", perDay: 3, titles: ["I Feel Alone, and It's Cold Outside"])
@@ -38,7 +42,12 @@ enum SampleData {
             .live(at: .sydney, days: 75, photosPerWeek: 4)
             .listen(to: "Etherwood", genre: "Drum & bass", perDay: 6, titles: ["Begin By Letting Go"])
             .alsoListen(to: "Love Remain", genre: "Chillout", perDay: 3, titles: ["Be With Me"])
-            .live(at: .melbourne, days: 80, photosPerWeek: 4)
+            .live(at: .melbourne, days: 30, photosPerWeek: 4)
+            .addToLibrary(
+                ["Fall at Your Feet", "Weather With You", "Four Seasons in One Day", "It's Only Natural"],
+                by: "Crowded House", genre: "Pop rock", plays: 7, album: "Woodface"
+            )
+            .live(at: .melbourne, days: 50, photosPerWeek: 4)
             .trip(to: .sydney, nights: 2)
             .live(at: .melbourne, days: 20, photosPerWeek: 4)
             .listen(to: "Above & Beyond", genre: "Trance", perDay: 5, titles: ["Counting Down the Days (feat. Gemma Hayes)", "Sun & Moon"])
@@ -64,7 +73,9 @@ enum SampleData {
     static func insert(into context: ModelContext, now: Date = .now, calendar: Calendar = .current) async throws {
         let library = library(endingOn: now, calendar: calendar)
         let pipeline = EraPipeline(namer: SamplePlaceNamer(), sampler: sampler(for: library.moments))
-        let result = await pipeline.run(moments: library.moments, plays: library.plays, now: now, calendar: calendar)
+        let result = await pipeline.run(
+            moments: library.moments, plays: library.plays, library: library.library, now: now, calendar: calendar
+        )
         try EraStore(context: context).save(result, moments: library.moments, now: now)
     }
 

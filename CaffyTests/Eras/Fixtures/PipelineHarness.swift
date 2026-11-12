@@ -35,6 +35,7 @@ enum PipelineHarness {
         return await pipeline.run(
             moments: moments,
             plays: scenario.plays,
+            library: scenario.library,
             frozen: frozen,
             now: now ?? scenario.now,
             calendar: scenario.calendar

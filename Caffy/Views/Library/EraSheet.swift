@@ -47,7 +47,7 @@ struct EraSheet: View {
                 Text(era.summary)
                     .font(Theme.display(17))
 
-                SongList(songs: era.songs, showsListenButton: true)
+                SongList(sections: SongSection.groups(of: era.songs), showsListenButton: true)
             }
             .padding(.horizontal, 16)
             .padding(.top, 20)
@@ -60,5 +60,26 @@ struct EraSheet: View {
         .scrollBounceBehavior(.basedOnSize)
         .presentationDetents([.height(min(contentHeight, 620))])
         .presentationBackground(era.palette.paper)
+    }
+}
+
+extension SongSection {
+    /// An era's playlist split by where each song came from, in playlist
+    /// order. Empty groups are dropped by `SongList`.
+    static func groups(of songs: [EraSong]) -> [SongSection] {
+        SongEvidence.allCases.map { evidence in
+            SongSection(title: evidence.groupTitle, songs: songs.filter { $0.evidence == evidence }.map(\.song))
+        }
+    }
+}
+
+extension SongEvidence {
+    /// The label above this group of songs in an era's sheet.
+    var groupTitle: String {
+        switch self {
+        case .nearPlay: "Playing at these moments"
+        case .libraryAdded: "Added to your library around this time"
+        case .loosePlay: "Also that day"
+        }
     }
 }

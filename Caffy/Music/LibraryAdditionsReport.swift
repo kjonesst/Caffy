@@ -20,6 +20,25 @@ nonisolated struct LibraryAdditionsReport: Equatable, Sendable {
         let count: Int
     }
 
+    /// How a saved era's playlist splits by where its songs came from.
+    struct PlaylistSplit: Equatable, Sendable {
+        var near = 0
+        var added = 0
+        var loose = 0
+
+        init(near: Int = 0, added: Int = 0, loose: Int = 0) {
+            self.near = near
+            self.added = added
+            self.loose = loose
+        }
+
+        init(_ songs: [EraSong]) {
+            near = songs.count { $0.evidence == .nearPlay }
+            added = songs.count { $0.evidence == .libraryAdded }
+            loose = songs.count { $0.evidence == .loosePlay }
+        }
+    }
+
     /// One era's songs after each step.
     struct EraRow: Equatable, Sendable {
         let era: LibraryAdditions.EraWindow
@@ -35,6 +54,8 @@ nonisolated struct LibraryAdditionsReport: Equatable, Sendable {
         let afterAlbums: Int
         /// The era's final songs, best first, capped.
         let songs: [LibraryAdditions.Candidate]
+        /// The saved era's playlist, if known.
+        var playlist: PlaylistSplit? = nil
 
         var top: ArraySlice<LibraryAdditions.Candidate> { songs.prefix(LibraryAdditionsReport.topSongsShown) }
     }
@@ -74,6 +95,7 @@ nonisolated struct LibraryAdditionsReport: Equatable, Sendable {
     init(
         songs: [LibrarySongSnapshot],
         eras: [LibraryAdditions.EraWindow],
+        playlists: [String: PlaylistSplit] = [:],
         now: Date,
         calendar: Calendar,
         config: EraBuildConfig = .standard
@@ -112,7 +134,8 @@ nonisolated struct LibraryAdditionsReport: Equatable, Sendable {
                     played: played[era.id]?.count ?? 0,
                     afterBulkDays: afterBulkDays[era.id]?.count ?? 0,
                     afterAlbums: afterAlbums[era.id]?.count ?? 0,
-                    songs: final[era.id] ?? []
+                    songs: final[era.id] ?? [],
+                    playlist: playlists[era.id]
                 )
             }
     }
@@ -187,6 +210,9 @@ nonisolated struct LibraryAdditionsReport: Equatable, Sendable {
                 let end = era.end < now ? day(era.end) : "now"
                 lines.append("\(name) · \(era.isTrip ? "trip" : "home") · \(day(era.start)) – \(end)")
                 lines.append("  \(row.raw) / \(row.played) / \(row.afterBulkDays) / \(row.afterAlbums) / \(row.songs.count)")
+                if let playlist = row.playlist {
+                    lines.append("  playlist: near \(playlist.near) · added \(playlist.added) · loose \(playlist.loose)")
+                }
                 for (rank, candidate) in row.top.enumerated() {
                     let song = candidate.snapshot
                     lines.append("  \(rank + 1). \(song.title) – \(song.artist) (\(song.playCount) plays)")

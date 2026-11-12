@@ -30,7 +30,19 @@ final class Moment {
     var latitude: Double?
     var longitude: Double?
 
-    var songs: [Song]
+    /// The songs playing around this moment, strongest first.
+    ///
+    /// - `nil`: never matched against real listening data (it happened
+    ///   before Caffy had any). A frozen era's moment can still get songs.
+    /// - `[]`: matched, and nothing was playing (or the user cleared them).
+    var songs: [Song]?
+
+    /// The matcher's weight for each of `songs`, in the same order. `nil` for
+    /// sample data and moments saved before weights were kept.
+    var songScores: [Double]?
+
+    /// `true` when `songs` only come from the same day, not from near the moment.
+    var songsAreLoose: Bool = false
 
     /// The era this moment belongs to. The other side of `Era.moments`.
     var era: Era?
@@ -38,7 +50,7 @@ final class Moment {
     /// Where this moment happened, if Caffy knows. The other side of `Place.moments`.
     var place: Place?
 
-    init(date: Date, songs: [Song], photoAssetIdentifier: String? = nil, photoAspectRatio: Double = 1) {
+    init(date: Date, songs: [Song]?, photoAssetIdentifier: String? = nil, photoAspectRatio: Double = 1) {
         self.date = date
         self.songs = songs
         self.photoAssetIdentifier = photoAssetIdentifier
@@ -57,5 +69,42 @@ extension Moment {
         assign(moment.coverAspectRatio, to: \.photoAspectRatio)
         assign(moment.coordinate?.latitude, to: \.latitude)
         assign(moment.coordinate?.longitude, to: \.longitude)
+    }
+}
+
+extension Moment {
+    /// This moment's songs with where they came from, strongest first.
+    var matches: [EraSong] {
+        let songs = songs ?? []
+        let evidence: SongEvidence = songsAreLoose ? .loosePlay : .nearPlay
+        return songs.enumerated().map { index, song in
+            // Without saved weights, earlier songs count for more.
+            let score = songScores.flatMap { $0.indices.contains(index) ? $0[index] : nil }
+                ?? Double(songs.count - index)
+            return EraSong(song: song, evidence: evidence, score: score)
+        }
+    }
+
+    /// Sets this moment's songs, weights and looseness together, changing
+    /// only what's different. `nil` means not matched against real listening.
+    func setMatches(_ matches: [EraSong]?) {
+        assign(matches?.map(\.song), to: \.songs)
+        assign(matches?.map(\.score), to: \.songScores)
+        assign(matches?.first?.evidence == .loosePlay, to: \.songsAreLoose)
+    }
+
+    /// Whether this moment has no songs of its own, so it shows its era's
+    /// songs instead (labelled "From this era").
+    var isEraFallback: Bool {
+        songs?.isEmpty ?? true
+    }
+
+    /// The songs to show for this moment: its own, or else its era's top
+    /// songs. Check `isEraFallback` before presenting them: era songs must
+    /// never look as if they were playing at this moment.
+    func displaySongs(limit: Int = 8) -> [Song] {
+        if let songs, !songs.isEmpty { return songs }
+        guard let era, era.isLive else { return [] }
+        return Array(era.songs.prefix(limit).map(\.song))
     }
 }

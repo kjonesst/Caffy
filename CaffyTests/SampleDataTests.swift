@@ -64,7 +64,7 @@ struct SampleDataTests {
 
     @Test func songsHaveRealTitles() async throws {
         try await SampleData.insert(into: context, now: Self.now, calendar: Self.calendar)
-        let songs = try eras().flatMap(\.songs)
+        let songs = try eras().flatMap(\.songs).map(\.song)
         #expect(!songs.isEmpty)
         #expect(songs.allSatisfy { !$0.title.contains(" Track ") })
     }

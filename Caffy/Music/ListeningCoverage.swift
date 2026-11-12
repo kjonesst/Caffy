@@ -102,6 +102,7 @@ nonisolated struct ListeningCoverage: Equatable, Sendable {
         libraryReads: Int,
         hasPhotoAccess: Bool = true,
         eras: [LibraryAdditions.EraWindow] = [],
+        playlists: [String: LibraryAdditionsReport.PlaylistSplit] = [:],
         now: Date,
         calendar: Calendar,
         config: EraBuildConfig = .standard
@@ -130,7 +131,7 @@ nonisolated struct ListeningCoverage: Equatable, Sendable {
         let lastPlayed = MediaPlayerListeningSource.plays(from: songs)
         lastPlayedMatches = Self.counts(MusicMatcher.match(moments, with: lastPlayed, calendar: calendar, config: config), now: now)
         recordedMatches = Self.counts(MusicMatcher.match(moments, with: recordedPlays, calendar: calendar, config: config), now: now)
-        additions = LibraryAdditionsReport(songs: songs, eras: eras, now: now, calendar: calendar, config: config)
+        additions = LibraryAdditionsReport(songs: songs, eras: eras, playlists: playlists, now: now, calendar: calendar, config: config)
     }
 
     private static func counts(_ matched: [MatchedMoment], now: Date) -> [Age: MatchCounts] {
@@ -253,7 +254,7 @@ extension ListeningCoverage {
         let songs = await reader.songs()
         let recorded = (try? await RecordedListeningSource(container: container).plays(in: DateInterval(start: .distantPast, end: now))) ?? []
         let history = historyFacts(in: container.mainContext)
-        let eras = savedEras(in: container.mainContext, now: now)
+        let (eras, playlists) = savedEras(in: container.mainContext, now: now)
         return ListeningCoverage(
             moments: moments,
             songs: songs,
@@ -262,26 +263,34 @@ extension ListeningCoverage {
             libraryReads: history.reads,
             hasPhotoAccess: photos != nil,
             eras: eras,
+            playlists: playlists,
             now: now,
             calendar: calendar
         )
     }
 
-    /// The eras the last sync saved. Sample data (no `eraID`) is left out.
+    /// The eras the last sync saved, and how each one's playlist splits.
+    /// Sample data (no `eraID`) is left out.
     @MainActor
-    private static func savedEras(in context: ModelContext, now: Date) -> [LibraryAdditions.EraWindow] {
-        let eras = (try? context.fetch(FetchDescriptor<Era>(predicate: #Predicate { $0.eraID != nil }))) ?? []
-        return eras.compactMap { era in
-            era.eraID.map { id in
-                LibraryAdditions.EraWindow(
-                    id: id,
-                    title: era.title,
-                    start: era.startDate,
-                    end: era.endDate ?? now,
-                    isTrip: era.kind == .trip
-                )
-            }
+    private static func savedEras(
+        in context: ModelContext,
+        now: Date
+    ) -> (eras: [LibraryAdditions.EraWindow], playlists: [String: LibraryAdditionsReport.PlaylistSplit]) {
+        let saved = (try? context.fetch(FetchDescriptor<Era>(predicate: #Predicate { $0.eraID != nil }))) ?? []
+        var eras: [LibraryAdditions.EraWindow] = []
+        var playlists: [String: LibraryAdditionsReport.PlaylistSplit] = [:]
+        for era in saved {
+            guard let id = era.eraID else { continue }
+            eras.append(LibraryAdditions.EraWindow(
+                id: id,
+                title: era.title,
+                start: era.startDate,
+                end: era.endDate ?? now,
+                isTrip: era.kind == .trip
+            ))
+            playlists[id] = LibraryAdditionsReport.PlaylistSplit(era.songs)
         }
+        return (eras, playlists)
     }
 
     @concurrent

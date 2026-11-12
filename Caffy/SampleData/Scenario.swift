@@ -40,6 +40,8 @@ nonisolated struct Scenario: Sendable {
     private(set) var moments: [PhotoMoment] = []
     /// Every play so far, oldest first.
     private(set) var plays: [ListeningEvent] = []
+    /// The music library: every song added so far, oldest first.
+    private(set) var library: [LibrarySongSnapshot] = []
 
     private var rng: SplitMix64
     private var habits: [Habit] = []
@@ -112,6 +114,28 @@ nonisolated struct Scenario: Sendable {
         var next = self
         for _ in 0..<days {
             next.fillDay(at: nil, moments: 0, hours: 8...22)
+        }
+        return next
+    }
+
+    /// Adds songs to the music library around noon on the current day (just
+    /// before a trip that starts today), each later played `plays` times.
+    /// `album` puts them all on one album: a whole album added at once.
+    func addToLibrary(_ titles: [String], by artist: String, genre: String, plays: Int = 6, album: String? = nil) -> Scenario {
+        var next = self
+        let albumID = album.map { _ in UInt64(900_000 + library.count) }
+        for (index, title) in titles.enumerated() {
+            next.addSong(title: title, artist: artist, genre: genre, plays: max(0, plays - index), album: album, albumID: albumID, minute: index)
+        }
+        return next
+    }
+
+    /// A bulk import on the current day (joining Apple Music, say): `count`
+    /// songs added at once, most of them hardly played.
+    func bulkImport(_ count: Int, by artist: String = "Various Artists", genre: String = "Pop") -> Scenario {
+        var next = self
+        for index in 0..<count {
+            next.addSong(title: "Imported Song \(index + 1)", artist: artist, genre: genre, plays: index % 4, album: nil, albumID: nil, minute: index)
         }
         return next
     }
@@ -211,6 +235,22 @@ nonisolated struct Scenario: Sendable {
                 coordinate: coordinate
             ))
         }
+    }
+
+    private mutating func addSong(title: String, artist: String, genre: String, plays: Int, album: String?, albumID: UInt64?, minute: Int) {
+        let id = UInt64(100_000 + library.count + 1)
+        library.append(LibrarySongSnapshot(
+            persistentID: id,
+            catalogID: nil,
+            title: title,
+            artist: artist,
+            genre: genre,
+            duration: 240,
+            playCount: plays,
+            dateAdded: time(hour: 12).addingTimeInterval(Double(minute) * 60),
+            albumID: albumID,
+            albumTitle: album
+        ))
     }
 
     /// Adds each habit's plays for the current day, spread between 07:00 and

@@ -114,6 +114,10 @@ nonisolated struct EraBuildConfig: Sendable, Equatable {
     /// Additions during a trip are stronger evidence than additions during a
     /// long home era, so their scores are multiplied by this.
     var tripAdditionBoost: Double = 1.5
+    /// Whether songs only played on the same day as a moment (loose matches)
+    /// go in the era's playlist too. Off: same-day matches against a single
+    /// last-played date put most of the library into the newest era.
+    var includeLoosePlaysInEraPlaylist: Bool = false
 
     // MARK: - Palette
 
