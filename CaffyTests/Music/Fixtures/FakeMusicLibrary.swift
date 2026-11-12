@@ -35,17 +35,25 @@ extension LibrarySongSnapshot {
         _ persistentID: UInt64,
         catalogID: String? = nil,
         lastPlayed: Date? = nil,
-        count: Int = 0
+        count: Int = 0,
+        added: Date? = nil,
+        skips: Int = 0,
+        album: UInt64? = nil,
+        title: String? = nil
     ) -> LibrarySongSnapshot {
         LibrarySongSnapshot(
             persistentID: persistentID,
             catalogID: catalogID,
-            title: "Song \(persistentID)",
+            title: title ?? "Song \(persistentID)",
             artist: "Artist \(persistentID)",
             genre: "Pop",
             duration: 200,
             lastPlayedDate: lastPlayed,
-            playCount: count
+            playCount: count,
+            dateAdded: added,
+            skipCount: skips,
+            albumID: album,
+            albumTitle: album.map { "Album \($0)" }
         )
     }
 }

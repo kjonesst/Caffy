@@ -122,6 +122,12 @@ struct LiveAdapterTests {
         Self.note("Library songs: \(songs.count), with a last-played date: \(songs.count { $0.lastPlayedDate != nil })")
         Self.note("Without a catalog id (empty or \"0\"): \(songs.count { $0.catalogID == nil })")
         Self.note("Last played: " + ListeningCoverage.Age.allCases.map { "\($0.label) \(ages[$0] ?? 0)" }.joined(separator: ", "))
+        let additions = LibraryAdditionsReport(songs: songs, eras: [], now: now, calendar: .current)
+        Self.note("Date added: \(additions.songsWithDateAdded), none: \(additions.songsWithoutDateAdded), "
+            + "from \(additions.earliestAdded.map { "\($0)" } ?? "–") to \(additions.latestAdded.map { "\($0)" } ?? "–")")
+        if let biggest = additions.biggestDay {
+            Self.note(String(format: "Biggest day: %@, %d songs (%.0f%% of the library)", "\(biggest.day)", biggest.count, additions.biggestDayShare * 100))
+        }
         #expect(!songs.isEmpty)
         #endif
     }

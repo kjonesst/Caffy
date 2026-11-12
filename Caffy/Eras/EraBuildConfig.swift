@@ -88,6 +88,33 @@ nonisolated struct EraBuildConfig: Sendable, Equatable {
     /// An era is frozen (never re-cut or renamed) this long after it ends.
     var freezeAfter: TimeInterval = 14 * 24 * 60 * 60
 
+    // MARK: - Library additions: era songs from when songs were added
+
+    /// Songs added this long before an era starts still count towards it:
+    /// people often add music ahead of a trip.
+    var additionLeadIn: TimeInterval = 3 * 24 * 60 * 60
+    /// A local day with more additions than this was probably a bulk import
+    /// (joining Apple Music, turning on iCloud Music Library), not taste.
+    /// Only its `bulkDayKeep` most-played songs count.
+    var bulkDayThreshold: Int = 40
+    /// How many songs a bulk day keeps, most played first.
+    var bulkDayKeep: Int = 5
+    /// When several tracks from one album were added within
+    /// `albumAddWindow`, only this many of the most played count, so one
+    /// album added whole doesn't fill an era.
+    var maxTracksPerAlbumAdd: Int = 2
+    /// Tracks from the same album added within this long of the first one
+    /// count as one album add.
+    var albumAddWindow: TimeInterval = 24 * 60 * 60
+    /// Songs played fewer times than this don't count: adding a song isn't
+    /// the same as listening to it.
+    var minPlayCountForAddition: Int = 1
+    /// The most library-addition songs one era keeps.
+    var maxAdditionSongsPerEra: Int = 25
+    /// Additions during a trip are stronger evidence than additions during a
+    /// long home era, so their scores are multiplied by this.
+    var tripAdditionBoost: Double = 1.5
+
     // MARK: - Palette
 
     /// How many moments' cover photos are sampled for an era's colours.

@@ -91,6 +91,9 @@ nonisolated struct ListeningCoverage: Equatable, Sendable {
     /// Moments by age, matched with recorded history.
     let recordedMatches: [Age: MatchCounts]
 
+    /// What `dateAdded` could add to each era's songs.
+    let additions: LibraryAdditionsReport
+
     init(
         moments: [PhotoMoment],
         songs: [LibrarySongSnapshot]?,
@@ -98,6 +101,7 @@ nonisolated struct ListeningCoverage: Equatable, Sendable {
         recordingSince: Date?,
         libraryReads: Int,
         hasPhotoAccess: Bool = true,
+        eras: [LibraryAdditions.EraWindow] = [],
         now: Date,
         calendar: Calendar,
         config: EraBuildConfig = .standard
@@ -126,6 +130,7 @@ nonisolated struct ListeningCoverage: Equatable, Sendable {
         let lastPlayed = MediaPlayerListeningSource.plays(from: songs)
         lastPlayedMatches = Self.counts(MusicMatcher.match(moments, with: lastPlayed, calendar: calendar, config: config), now: now)
         recordedMatches = Self.counts(MusicMatcher.match(moments, with: recordedPlays, calendar: calendar, config: config), now: now)
+        additions = LibraryAdditionsReport(songs: songs, eras: eras, now: now, calendar: calendar, config: config)
     }
 
     private static func counts(_ matched: [MatchedMoment], now: Date) -> [Age: MatchCounts] {
@@ -196,6 +201,9 @@ nonisolated struct ListeningCoverage: Equatable, Sendable {
         lines.append(Self.row("all", Self.cell(allLastPlayed), Self.cell(allRecorded)))
 
         lines.append("")
+        lines.append(additions.text)
+
+        lines.append("")
         lines.append("VERDICT: \(verdictText)")
         lines.append(
             "Pass: ≥ \(Self.percent(Self.passShare)) of the last 30 days' moments have songs played near them, "
@@ -245,6 +253,7 @@ extension ListeningCoverage {
         let songs = await reader.songs()
         let recorded = (try? await RecordedListeningSource(container: container).plays(in: DateInterval(start: .distantPast, end: now))) ?? []
         let history = historyFacts(in: container.mainContext)
+        let eras = savedEras(in: container.mainContext, now: now)
         return ListeningCoverage(
             moments: moments,
             songs: songs,
@@ -252,9 +261,27 @@ extension ListeningCoverage {
             recordingSince: history.since,
             libraryReads: history.reads,
             hasPhotoAccess: photos != nil,
+            eras: eras,
             now: now,
             calendar: calendar
         )
+    }
+
+    /// The eras the last sync saved. Sample data (no `eraID`) is left out.
+    @MainActor
+    private static func savedEras(in context: ModelContext, now: Date) -> [LibraryAdditions.EraWindow] {
+        let eras = (try? context.fetch(FetchDescriptor<Era>(predicate: #Predicate { $0.eraID != nil }))) ?? []
+        return eras.compactMap { era in
+            era.eraID.map { id in
+                LibraryAdditions.EraWindow(
+                    id: id,
+                    title: era.title,
+                    start: era.startDate,
+                    end: era.endDate ?? now,
+                    isTrip: era.kind == .trip
+                )
+            }
+        }
     }
 
     @concurrent
