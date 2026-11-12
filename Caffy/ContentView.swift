@@ -60,7 +60,7 @@ struct ContentView: View {
             librarySync = sync
             switch await sync.sync() {
             case .synced, .queued:
-                sync.observeLibraryChanges()
+                await sync.observeLibraryChanges()
                 return
             case .noAccess:
                 // PhotoKit disagrees with the app's permission state (DEBUG's

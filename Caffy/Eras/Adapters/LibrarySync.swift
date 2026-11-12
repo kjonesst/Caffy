@@ -35,6 +35,7 @@ final class LibrarySync {
 
     private var isRunning = false
     private var runAgain = false
+    private var isObservingChanges = false
     private var changeRelay: PhotoLibraryChangeRelay?
     private var pendingChange: Task<Void, Never>?
 
@@ -117,16 +118,17 @@ final class LibrarySync {
 
     /// Syncs again whenever the photo library changes while Caffy is open,
     /// two seconds after the last change (so an import of many photos means
-    /// one sync, not hundreds). Only call this once photo access is granted.
-    func observeLibraryChanges() {
-        guard changeRelay == nil else { return }
-        let relay = PhotoLibraryChangeRelay { [weak self] in
+    /// one sync, not hundreds). Changes that can't affect eras, such as
+    /// favouriting a photo or editing an album, are ignored. Only call this
+    /// once photo access is granted.
+    func observeLibraryChanges() async {
+        guard !isObservingChanges else { return }
+        isObservingChanges = true
+        changeRelay = await PhotoLibraryChangeRelay.register { [weak self] in
             // Unwrapped once here, so the task below captures a constant.
             guard let self else { return }
             Task { @MainActor in self.libraryChanged() }
         }
-        PHPhotoLibrary.shared().register(relay)
-        changeRelay = relay
     }
 
     private func libraryChanged() {
@@ -139,16 +141,59 @@ final class LibrarySync {
     }
 }
 
-/// Passes PhotoKit's change notifications (which arrive on a background
-/// queue) to a closure.
-private nonisolated final class PhotoLibraryChangeRelay: NSObject, PHPhotoLibraryChangeObserver {
+/// Passes on PhotoKit's change notifications (which arrive on a background
+/// queue) to a closure, but only those that could change what
+/// `PhotoKitLibraryReader` reads, or a photo's colours.
+///
+/// PhotoKit reports every change to the library: favourites, albums,
+/// videos. Each one would otherwise mean a full sync.
+private nonisolated final class PhotoLibraryChangeRelay: NSObject, PHPhotoLibraryChangeObserver, @unchecked Sendable {
     private let onChange: @Sendable () -> Void
+    private let lock = NSLock()
+    /// Every image as of the last change, for PhotoKit to compare against.
+    /// Guarded by `lock`.
+    private var images: PHFetchResult<PHAsset>
 
-    init(onChange: @escaping @Sendable () -> Void) {
+    private init(images: PHFetchResult<PHAsset>, onChange: @escaping @Sendable () -> Void) {
+        self.images = images
         self.onChange = onChange
     }
 
-    func photoLibraryDidChange(_ changeInstance: PHChange) {
-        onChange()
+    /// Makes a relay and registers it with PhotoKit. Off the main actor,
+    /// because fetching a large library takes a moment.
+    @concurrent
+    static func register(onChange: @escaping @Sendable () -> Void) async -> PhotoLibraryChangeRelay {
+        let relay = PhotoLibraryChangeRelay(images: PhotoKitLibraryReader.fetchImages(), onChange: onChange)
+        PHPhotoLibrary.shared().register(relay)
+        return relay
+    }
+
+    func photoLibraryDidChange(_ change: PHChange) {
+        let matters = lock.withLock {
+            guard let details = change.changeDetails(for: images) else { return false }
+            images = details.fetchResultAfterChanges
+            return Self.matters(details, in: change)
+        }
+        if matters {
+            onChange()
+        }
+    }
+
+    /// Whether photos came or went, or one changed in a way Caffy notices:
+    /// its date, place, shape or screenshot-ness (`PhotoItem`), or its
+    /// picture (an edit can change the era's colours).
+    private static func matters(_ details: PHFetchResultChangeDetails<PHAsset>, in change: PHChange) -> Bool {
+        // Too many changes to list (a big import): assume the worst.
+        guard details.hasIncrementalChanges else { return true }
+        if !details.insertedObjects.isEmpty || !details.removedObjects.isEmpty {
+            return true
+        }
+        return details.changedObjects.contains { asset in
+            guard let assetDetails = change.changeDetails(for: asset),
+                  let after = assetDetails.objectAfterChanges
+            else { return true }
+            return assetDetails.assetContentChanged
+                || PhotoItem(asset: assetDetails.objectBeforeChanges) != PhotoItem(asset: after)
+        }
     }
 }

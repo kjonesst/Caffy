@@ -113,21 +113,22 @@ final class Era {
 }
 
 extension Era {
-    /// Copies an era worked out by the pipeline, except its moments and playlist.
+    /// Copies an era worked out by the pipeline, except its moments and
+    /// playlist. Only what changed is set (see `assign`).
     func update(from built: BuiltEra) {
         let draft = built.draft
-        eraID = draft.id
-        kind = draft.kind
-        isFrozen = built.isFrozen
-        startReasonRaw = draft.startReason.rawValue
-        centreLatitude = draft.centre?.latitude
-        centreLongitude = draft.centre?.longitude
-        title = built.content.title
-        whenLabel = built.content.whenLabel
-        summary = built.content.summary
-        startDate = draft.start
-        endDate = draft.end
-        palette = built.palette
+        assign(draft.id, to: \.eraID)
+        assign(draft.kind.rawValue, to: \.kindRaw)
+        assign(built.isFrozen, to: \.isFrozen)
+        assign(draft.startReason.rawValue, to: \.startReasonRaw)
+        assign(draft.centre?.latitude, to: \.centreLatitude)
+        assign(draft.centre?.longitude, to: \.centreLongitude)
+        assign(built.content.title, to: \.title)
+        assign(built.content.whenLabel, to: \.whenLabel)
+        assign(built.content.summary, to: \.summary)
+        assign(draft.start, to: \.startDate)
+        assign(draft.end, to: \.endDate)
+        assign(built.palette, to: \.colors)
     }
 
     /// This era as the pipeline needs it once frozen, or `nil` for an era the

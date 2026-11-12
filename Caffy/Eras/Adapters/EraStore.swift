@@ -55,12 +55,16 @@ struct EraStore {
             }
             era.update(from: built)
             for id in built.draft.momentIDs {
-                moments[id]?.era = era
+                // Set only when it moves, like `assign`, so an unchanged
+                // moment isn't saved again.
+                if let moment = moments[id], moment.era !== era {
+                    moment.era = era
+                }
             }
 
             let songIDs = Set(era.songs.map(\.id))
             if let playlist = era.playlist {
-                playlist.name = built.content.title
+                playlist.assign(built.content.title, to: \.name)
                 if songIDs != songIDsBefore[era.persistentModelID] {
                     playlist.lastUpdated = now
                 }
@@ -108,7 +112,7 @@ struct EraStore {
             if let moment = existing[photo.id] {
                 moment.update(from: photo)
                 if !lockedEraIDs.contains(eraID) {
-                    moment.songs = songs
+                    moment.assign(songs, to: \.songs)
                 }
                 saved[photo.id] = moment
             } else {
