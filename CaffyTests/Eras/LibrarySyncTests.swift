@@ -207,7 +207,10 @@ struct LibrarySyncTests {
         let context = container.mainContext
         let moment = try #require(Self.library.moments.first)
         let music = FakeMusicLibrary([
-            LibrarySongSnapshot(persistentID: 1, catalogID: "42", title: "Borderline", artist: "Tame Impala", lastPlayedDate: moment.start, playCount: 3)
+            LibrarySongSnapshot(
+                persistentID: 1, catalogID: "42", title: "Borderline", artist: "Tame Impala",
+                lastPlayedDate: moment.start, playCount: 3, dateAdded: moment.start
+            )
         ])
         let now = Self.library.now
         let sync = LibrarySync(
@@ -226,7 +229,9 @@ struct LibrarySyncTests {
         // A synced moment is named after its first photo.
         let id = try #require(moment.photoIDs.first)
         let saved = try #require(try context.fetch(FetchDescriptor<Moment>(predicate: #Predicate { $0.momentID == id })).first)
-        #expect(saved.songs.map(\.id) == ["42"])
+        #expect(saved.songs?.map(\.id) == ["42"])
+        // The same library read gives the era its library additions.
+        #expect(saved.era?.addedSongs?.map(\.song.id) == ["42"])
     }
 
     @Test func frozenErasWithNoPhotosDontHoldABoundary() {

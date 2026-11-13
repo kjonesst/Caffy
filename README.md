@@ -17,6 +17,11 @@ Caffy is an iOS companion app for Apple Music. It automatically connects your ph
 - **Notify and invite.** When a playlist updates, tell the user and invite them to listen.
 - **Apple Music first.**
 
+## Principles
+
+- **Playlists are the evidence, not a tidy list.** An era's playlist is every song the evidence says the user lived with then, however many or few. There are no size caps and no padding: a busy era can hold 150 songs, and a short trip with no music stays empty.
+- **Quality comes from evidence filters, not limits:** loose same-day plays are off by default, songs added but never played don't count, bulk import days and whole-album adds are thinned, and the order is near plays → library additions → loose plays.
+
 ## Tech
 
 - Native Swift, built with Xcode, targeting iPhone.
@@ -25,10 +30,17 @@ Caffy is an iOS companion app for Apple Music. It automatically connects your ph
 - External services sit behind protocols so the app can run on fake data:
   - `ListeningSource`: Caffy's own recorded history (`RecordedListeningSource`), built from MediaPlayer library reads; sample plays for previews and tests
   - `PlaylistPublishing`: fake logger now, `MusicLibrary` later
+- Era songs come from three sources, and each song keeps an evidence label (`SongEvidence`) saying which:
+  - **Recorded plays** near a moment (`nearPlay`): the strongest evidence, and the only kind shown as "playing at" a moment.
+  - **Last-played dates** on the same day as a moment (`loosePlay`): left out of era playlists by default (`includeLoosePlaysInEraPlaylist`), because matching single last-played dates put most of the library in the newest era.
+  - **Library additions** (`libraryAdded`): songs whose `dateAdded` falls in the era (or up to 3 days before it), ranked by how much they were played since, with bulk-import days and whole-album adds thinned out (`LibraryAdditions`). This reaches back to before Caffy was installed, per era rather than per moment.
+- Era playlists list near plays, then library additions, then (if on) loose plays (`EraPlaylist`). A moment's songs are `nil` until listening data reaches it, and `[]` once matched with nothing found; a moment without songs shows its era's, labelled "From this era".
 
 ## Status
 
 Early stage. Eras are built from the real photo library. Listening comes from the `MediaPlayer` framework (`MPMediaQuery`), which needs no developer token and runs with free provisioning. Each time Caffy opens, it reads every library song's `lastPlayedDate` and `playCount`, compares them with the last read, and saves the plays in between (`ListeningRecorder`, `PlayHistoryDiff`). The latest play of a song is exact. Earlier ones are estimates over a time window, and windows longer than three days aren't matched to moments. The paid Apple Developer Program membership has not been purchased yet, so MusicKit code (playlists, catalog artwork) can't be run or validated.
+
+**Library additions (first device run):** the library's `dateAdded` starts in April 2020, but very little was added before 2023, so the 25 eras before then get nothing from it. The newest era had 155 songs played near its photos; they're real plays near real photos, so they're kept. The busiest addition days (2025-11-13: 71 songs, 2025-12-05: 64, 2026-09-03: 58, 2023-12-01: 44) were binges, not imports, so the bulk-day threshold went from 40 to 75. The 25-song cap on library additions per era was removed, and nested trips now take only the songs added during their own dates.
 
 Recorded history lives in its own local store (`ListeningHistoryStore`), apart from the derived eras, so rebuilding eras never loses it. DEBUG builds have **Listening coverage** in the profile button's menu: a report of how many moments real listening covers, with the go/no-go verdict below.
 
@@ -55,6 +67,9 @@ DEBUG builds have a few shortcuts for working on onboarding: the profile button'
 - **History is per-device:** the listening history store is local and never synced (iCloud Music Library already syncs play counts, so two devices would count each play twice).
 - **Library ids change:** a song's `persistentID` can change after a library reset or an iCloud Music Library resync. Catalog songs keep their id; for others, the next read starts a fresh baseline.
 - **Playlists:** `MusicLibrary.shared.edit` replaces the full track list, and Caffy only edits playlists it created.
+- **Nothing from before the library's real additions:** library additions only reach back as far as songs were actually added. In Ken's library that's 2023, so the Kerala and Thiruvananthapuram eras stay empty until per-play history is imported.
+- **Short trips may have few or no songs:** people rarely add or play much music while travelling, and that's accurate, so trips aren't padded with songs from around them.
+- **Library additions are a proxy:** adding a song isn't the same as listening to it, and people who stream without adding songs to their library get little from it. `dateAdded` can also be reset by a library resync, which piles the whole library onto one day (the coverage report warns when one day holds 30% or more).
 - **Genre river:** The river goes back years, but Caffy can only record listening from the day it's installed. Its widths are sample data until a real source for older history is found.
 - **Location:** The first version uses photo time and location metadata to avoid needing Always location access. `CLVisit` comes later.
 - **Background work:** MusicKit reads and playlist edits may not work reliably in the background, so work must also finish when the app opens.
@@ -62,7 +77,8 @@ DEBUG builds have a few shortcuts for working on onboarding: the profile button'
 
 ## Open questions
 
-- Where does history from before Caffy was installed come from, for older eras and the genre river?
+- Where does per-moment history from before Caffy was installed come from? Library additions cover eras, not moments, and nothing before 2023 in Ken's library. The Apple privacy export (per-play history) is the likely answer, if Apple Music was in use then: **request the export now**, since it takes days to arrive.
+- How often has `dateAdded` been reset by resyncs in real libraries?
 - How are era boundaries, titles, and summaries generated automatically?
 - Is `lastPlayedDate` reliable enough on current iOS? (Testable now on a real iPhone with the Listening coverage report.)
 - Does granting Apple Music access (MusicKit) also authorize `MPMediaLibrary` on a device?

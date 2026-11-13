@@ -61,7 +61,7 @@ struct EraCard: View {
 
             ListenPill(palette: era.palette)
 
-            SongList(songs: Era.songs(in: moments), limit: Self.songLimit) {
+            SongList(songs: era.songs(in: moments).map(\.song), limit: Self.songLimit) {
                 showsAllSongs = true
             }
         }

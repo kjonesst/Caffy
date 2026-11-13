@@ -18,5 +18,5 @@ final class CaffyPlaylist {
         self.lastUpdated = lastUpdated
     }
 
-    var songs: [Song] { era?.songs ?? [] }
+    var songs: [Song] { era?.songs.map(\.song) ?? [] }
 }

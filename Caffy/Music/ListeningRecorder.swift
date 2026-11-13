@@ -10,6 +10,15 @@ nonisolated struct RecordSummary: Equatable, Sendable {
     var newPlays: Int { newExactPlays + newEstimatedPlays }
 }
 
+/// One recording pass: what it found, and the library it read, so a sync can
+/// use the same read instead of reading the library again.
+nonisolated struct RecordPass: Sendable {
+    /// `nil` when Caffy may not read the library, or saving failed.
+    let summary: RecordSummary?
+    /// `nil` when Caffy may not read the library.
+    let library: [LibrarySongSnapshot]?
+}
+
 /// Builds Caffy's own listening history, one library read at a time.
 ///
 /// Each pass reads every library song, compares it with what the last pass
@@ -27,7 +36,7 @@ actor ListeningRecorder: ModelActor {
     private let maxEstimatedWindow: TimeInterval
     /// The pass under way, if any, so a second call waits for it instead of
     /// comparing against half-saved state.
-    private var inFlight: Task<RecordSummary?, Never>?
+    private var inFlight: Task<RecordPass, Never>?
 
     init(modelContainer: ModelContainer, reader: any MusicLibraryReader, config: EraBuildConfig = .standard) {
         self.modelContainer = modelContainer
@@ -41,18 +50,28 @@ actor ListeningRecorder: ModelActor {
     /// running, waits for it and returns what it found.
     @discardableResult
     func record(now: Date) async -> RecordSummary? {
+        await pass(now: now).summary
+    }
+
+    /// Like `record(now:)`, but also returns the library it read.
+    func pass(now: Date) async -> RecordPass {
         if let inFlight {
             return await inFlight.value
         }
         let task = Task { await self.recordOnce(now: now) }
         inFlight = task
-        let summary = await task.value
+        let pass = await task.value
         inFlight = nil
-        return summary
+        return pass
     }
 
-    private func recordOnce(now: Date) async -> RecordSummary? {
-        guard let songs = await reader.songs() else { return nil }
+    private func recordOnce(now: Date) async -> RecordPass {
+        guard let songs = await reader.songs() else { return RecordPass(summary: nil, library: nil) }
+        return RecordPass(summary: savePlays(songs, now: now), library: songs)
+    }
+
+    /// Compares `songs` with the last pass and saves the new plays.
+    private func savePlays(_ songs: [LibrarySongSnapshot], now: Date) -> RecordSummary? {
         // Nothing below suspends, so the comparison and save happen in one go.
         do {
             var latest = FetchDescriptor<ListeningCheck>(sortBy: [SortDescriptor(\.at, order: .reverse)])

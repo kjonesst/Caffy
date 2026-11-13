@@ -55,6 +55,11 @@ final class Era {
         set { colors = newValue }
     }
 
+    /// Songs added to the library during this era, best first (see
+    /// `LibraryAdditions`). `nil` until a sync with music access has looked.
+    /// Once the era is frozen, it takes these once and then keeps them.
+    var addedSongs: [EraSong]?
+
     /// The photos and songs in this era. Deleting an era deletes its moments.
     @Relationship(deleteRule: .cascade, inverse: \Moment.era)
     var moments: [Moment] = []
@@ -92,23 +97,19 @@ final class Era {
         moments.filter(\.isLive).sorted { $0.date > $1.date }
     }
 
-    /// Every song from this era's moments, newest moment first, without repeats.
+    /// The era's playlist: songs played near its moments, then songs added to
+    /// the library during it, without repeats (see `EraPlaylist`).
     ///
     /// This is computed rather than stored, so the music "updates itself"
     /// whenever a new moment joins the era.
-    var songs: [Song] {
-        Self.songs(in: momentsNewestFirst)
+    var songs: [EraSong] {
+        songs(in: momentsNewestFirst)
     }
 
-    /// The songs from already-sorted moments, without repeats. Views that also
-    /// need the sorted moments call this, so the moments are sorted only once.
-    static func songs(in momentsNewestFirst: [Moment]) -> [Song] {
-        var seenIDs = Set<String>()
-        // `insert` returns `inserted == false` for IDs already in the set,
-        // which filters out repeats while keeping the original order.
-        return momentsNewestFirst
-            .flatMap(\.songs)
-            .filter { seenIDs.insert($0.id).inserted }
+    /// The playlist from already-sorted moments. Views that also need the
+    /// sorted moments call this, so the moments are sorted only once.
+    func songs(in momentsNewestFirst: [Moment]) -> [EraSong] {
+        EraPlaylist.build(momentSongs: momentsNewestFirst.map(\.matches), added: addedSongs ?? [])
     }
 }
 

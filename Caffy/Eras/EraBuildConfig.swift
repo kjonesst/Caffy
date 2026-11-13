@@ -17,7 +17,9 @@ nonisolated struct EraBuildConfig: Sendable, Equatable {
     /// Plays further than this outside the window don't count at all
     /// (four half-lives, where the weight has dropped to 1/16).
     var matchDecayCutoff: TimeInterval = 2 * 60 * 60
-    /// The most songs a single moment keeps.
+    /// The most songs shown against a single moment. A moment keeps every
+    /// song played near it, and they all reach its era's playlist; this only
+    /// limits what one photo moment shows.
     var maxSongsPerMoment: Int = 8
     /// When nothing plays near a moment, fall back to songs from the same day,
     /// marked as a loose match.
@@ -87,6 +89,36 @@ nonisolated struct EraBuildConfig: Sendable, Equatable {
 
     /// An era is frozen (never re-cut or renamed) this long after it ends.
     var freezeAfter: TimeInterval = 14 * 24 * 60 * 60
+
+    // MARK: - Library additions: era songs from when songs were added
+
+    /// Songs added this long before an era starts still count towards it:
+    /// people often add music ahead of a trip.
+    var additionLeadIn: TimeInterval = 3 * 24 * 60 * 60
+    /// A local day with more additions than this was probably a bulk import
+    /// (joining Apple Music, turning on iCloud Music Library), not taste.
+    /// Only its `bulkDayKeep` most-played songs count. Binges of up to ~75
+    /// songs are real taste (checked against a real library), so they pass.
+    var bulkDayThreshold: Int = 75
+    /// How many songs a bulk day keeps, most played first.
+    var bulkDayKeep: Int = 5
+    /// When several tracks from one album were added within
+    /// `albumAddWindow`, only this many of the most played count, so one
+    /// album added whole doesn't fill an era.
+    var maxTracksPerAlbumAdd: Int = 2
+    /// Tracks from the same album added within this long of the first one
+    /// count as one album add.
+    var albumAddWindow: TimeInterval = 24 * 60 * 60
+    /// Songs played fewer times than this don't count: adding a song isn't
+    /// the same as listening to it.
+    var minPlayCountForAddition: Int = 1
+    /// Additions during a trip are stronger evidence than additions during a
+    /// long home era, so their scores are multiplied by this.
+    var tripAdditionBoost: Double = 1.5
+    /// Whether songs only played on the same day as a moment (loose matches)
+    /// go in the era's playlist too. Off: same-day matches against a single
+    /// last-played date put most of the library into the newest era.
+    var includeLoosePlaysInEraPlaylist: Bool = false
 
     // MARK: - Palette
 

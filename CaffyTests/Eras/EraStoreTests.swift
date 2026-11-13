@@ -185,7 +185,7 @@ struct EraStoreTests {
         try await sync(Self.musicShift)
         let frozenEra = try #require(try eras().first)
         let songsBefore = Dictionary(uniqueKeysWithValues: frozenEra.moments.map { ($0.momentID!, $0.songs) })
-        #expect(songsBefore.values.allSatisfy { !$0.isEmpty })
+        #expect(songsBefore.values.allSatisfy { !($0 ?? []).isEmpty })
 
         // The same library, but every play has gone.
         let pipeline = EraPipeline(namer: SamplePlaceNamer(), sampler: PipelineHarness.sampler(for: Self.musicShift.moments))
@@ -197,16 +197,17 @@ struct EraStoreTests {
 
         let saved = try eras()
         #expect(Dictionary(uniqueKeysWithValues: saved[0].moments.map { ($0.momentID!, $0.songs) }) == songsBefore)
-        #expect(saved[1].moments.allSatisfy { $0.songs.isEmpty })
+        // With no plays at all, nothing reaches the open era's moments.
+        #expect(saved[1].moments.allSatisfy { $0.songs == nil })
     }
 
-    @Test func frozenMomentsWithNoSongsCanStillGetSome() async throws {
+    @Test func frozenMomentsNeverMatchedCanStillGetSome() async throws {
         try await sync(Self.musicShift)
         let frozenBefore = try #require(try eras().first)
         #expect(frozenBefore.isFrozen)
         // As if it froze before its listening was recorded.
         for moment in frozenBefore.moments {
-            moment.songs = []
+            moment.setMatches(nil)
         }
         try context.save()
 
@@ -217,6 +218,132 @@ struct EraStoreTests {
         #expect(!frozen.songs.isEmpty)
         for moment in frozen.moments {
             #expect(moment.songs == result.songs[moment.momentID!] ?? [])
+        }
+    }
+
+    @Test func frozenMomentsMatchedWithNothingStayThatWay() async throws {
+        try await sync(Self.musicShift)
+        let frozen = try #require(try eras().first)
+        for moment in frozen.moments {
+            moment.setMatches([])
+        }
+        try context.save()
+
+        try await sync(Self.musicShift)
+        #expect(try #require(try eras().first).moments.allSatisfy { $0.songs == [] })
+    }
+
+    // MARK: - Library additions
+
+    /// `musicShift`, with songs added to the library in each era. Adding
+    /// songs doesn't change the photos or plays.
+    private static func musicShift(adding first: [String], then second: [String]) -> Scenario {
+        Scenario()
+            .listen(to: "Tame Impala", genre: "Psychedelic")
+            .addToLibrary(first, by: "Pond", genre: "Psychedelic")
+            .live(at: .sydney, days: 63)
+            .listen(to: "Fred again..", genre: "Electronic")
+            .addToLibrary(second, by: "Four Tet", genre: "Electronic")
+            .live(at: .sydney, days: 56)
+    }
+
+    private func addedTitles(_ era: Era) -> [String] {
+        (era.addedSongs ?? []).map(\.song.title)
+    }
+
+    @Test func aFrozenEraTakesLibraryAdditionsOnce() async throws {
+        // First synced without music access: no additions anywhere.
+        try await sync(Self.musicShift)
+        let frozen = try #require(try eras().first)
+        #expect(frozen.isFrozen)
+        #expect(addedTitles(frozen).isEmpty)
+
+        // With the library: the frozen era takes its additions.
+        try await sync(Self.musicShift(adding: ["Sorry I Missed Your Party"], then: ["Baby"]))
+        #expect(addedTitles(frozen) == ["Sorry I Missed Your Party"])
+        #expect(frozen.songs.contains { $0.evidence == .libraryAdded && $0.song.title == "Sorry I Missed Your Party" })
+
+        // Different additions later don't change a frozen era's.
+        try await sync(Self.musicShift(adding: ["Paint Me Silver"], then: ["Two Thousand and Seventeen"]))
+        #expect(addedTitles(frozen) == ["Sorry I Missed Your Party"])
+        // An open era takes the latest.
+        let open = try #require(try eras().last)
+        #expect(!open.isFrozen)
+        #expect(addedTitles(open) == ["Two Thousand and Seventeen"])
+    }
+
+    @Test func resyncingTheSameLibraryLeavesAnOpenEraAlone() async throws {
+        let scenario = Self.musicShift(adding: ["Sorry I Missed Your Party"], then: ["Baby", "Planet"])
+        try await sync(scenario)
+        let open = try #require(try eras().last)
+        let songs = open.songs
+        #expect(songs.contains { $0.evidence == .libraryAdded })
+
+        try await sync(scenario, now: scenario.now.addingTimeInterval(Self.hour))
+        #expect(open.songs == songs)
+        #expect(open.playlist?.lastUpdated == scenario.now)
+    }
+
+    // MARK: - No caps
+
+    @Test func busyMomentsKeepEverySongAndShowTheirTop() async throws {
+        let titles = (1...20).map { "Song \($0)" }
+        let busy = Scenario()
+            .listen(to: "Tame Impala", genre: "Psychedelic", perDay: 80, titles: titles)
+            .live(at: .sydney, days: 10, photosPerWeek: 7)
+        try await sync(busy)
+        let limit = EraBuildConfig.standard.maxSongsPerMoment
+        let moment = try #require(try allMoments().first { ($0.songs?.count ?? 0) > limit })
+        let era = try #require(moment.era)
+
+        let playlist = Set(era.songs.map(\.song.id))
+        #expect(Set((moment.songs ?? []).map(\.id)).isSubset(of: playlist))
+        #expect(moment.shownSongs.count == limit)
+        #expect(moment.shownSongs == Array((moment.songs ?? []).prefix(limit)))
+        #expect(moment.displaySongs().count == limit)
+    }
+
+    // MARK: - One-off reset of empty frozen moments
+
+    @Test func emptyFrozenMomentsAreResetOnce() async throws {
+        try await sync(Self.musicShift)
+        let frozen = try #require(try eras().first)
+        let open = try #require(try eras().last)
+        for moment in frozen.moments + open.moments {
+            moment.setMatches([])
+        }
+        try context.save()
+        let defaults = try #require(UserDefaults(suiteName: "EraStoreTests-\(UUID().uuidString)"))
+
+        try store.resetEmptyFrozenMomentSongsOnce(defaults: defaults)
+        #expect(frozen.moments.allSatisfy { $0.songs == nil })
+        // Only frozen eras' moments: open ones are rematched every sync anyway.
+        #expect(open.moments.allSatisfy { $0.songs == [] })
+
+        // A second run does nothing, even with empty frozen moments again.
+        for moment in frozen.moments {
+            moment.setMatches([])
+        }
+        try context.save()
+        try store.resetEmptyFrozenMomentSongsOnce(defaults: defaults)
+        #expect(frozen.moments.allSatisfy { $0.songs == [] })
+    }
+
+    // MARK: - Moments without songs
+
+    @Test func momentsWithoutSongsShowTheirErasLabelled() async throws {
+        try await sync(Self.musicShift)
+        let era = try #require(try eras().first)
+        let moments = era.momentsNewestFirst
+        let withSongs = try #require(moments.first { !($0.songs ?? []).isEmpty })
+        #expect(!withSongs.isEraFallback)
+        #expect(withSongs.displaySongs() == withSongs.songs)
+
+        for songs in [nil, [Song]()] {
+            let moment = try #require(moments.last)
+            moment.songs = songs
+            #expect(moment.isEraFallback)
+            #expect(moment.displaySongs(limit: 3) == Array(era.songs.prefix(3).map(\.song)))
         }
     }
 

@@ -20,6 +20,15 @@ nonisolated struct LibrarySongSnapshot: Hashable, Sendable {
     var lastPlayedDate: Date? = nil
     /// How many times the song has been played to the end.
     var playCount: Int = 0
+    /// When the song was added to the library. Later plays don't change it,
+    /// so it often reaches back years, but a library resync can reset it.
+    /// `nil` when the library doesn't know.
+    var dateAdded: Date? = nil
+    /// How many times the song was skipped.
+    var skipCount: Int = 0
+    /// The library's id for the song's album, or `nil` when it has none.
+    var albumID: UInt64? = nil
+    var albumTitle: String? = nil
 
     init(
         persistentID: UInt64,
@@ -29,7 +38,11 @@ nonisolated struct LibrarySongSnapshot: Hashable, Sendable {
         genre: String? = nil,
         duration: TimeInterval = 0,
         lastPlayedDate: Date? = nil,
-        playCount: Int = 0
+        playCount: Int = 0,
+        dateAdded: Date? = nil,
+        skipCount: Int = 0,
+        albumID: UInt64? = nil,
+        albumTitle: String? = nil
     ) {
         self.persistentID = persistentID
         self.catalogID = Self.normalisedCatalogID(catalogID)
@@ -39,6 +52,11 @@ nonisolated struct LibrarySongSnapshot: Hashable, Sendable {
         self.duration = duration
         self.lastPlayedDate = lastPlayedDate
         self.playCount = playCount
+        self.dateAdded = dateAdded
+        self.skipCount = skipCount
+        // `albumPersistentID` is 0 for songs without an album.
+        self.albumID = albumID == 0 ? nil : albumID
+        self.albumTitle = albumTitle
     }
 
     /// The key that tracks this song between library reads.
@@ -96,7 +114,11 @@ nonisolated struct MediaPlayerLibraryReader: MusicLibraryReader {
                 genre: item.genre,
                 duration: item.playbackDuration,
                 lastPlayedDate: item.lastPlayedDate,
-                playCount: item.playCount
+                playCount: item.playCount,
+                dateAdded: item.dateAdded,
+                skipCount: item.skipCount,
+                albumID: item.albumPersistentID,
+                albumTitle: item.albumTitle
             )
         }
     }

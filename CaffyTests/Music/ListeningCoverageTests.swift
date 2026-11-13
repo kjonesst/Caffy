@@ -121,6 +121,12 @@ struct ListeningCoverageTests {
         #expect(Self.coverage(moments: [Self.old]).verdict == .noRecentMoments)
     }
 
+    @Test func includesLibraryAdditions() {
+        let text = Self.coverage().text
+        #expect(text.contains("LIBRARY ADDITIONS"))
+        #expect(text.contains("No saved eras yet"))
+    }
+
     @Test func withoutMusicAccessTheLibraryIsEmpty() {
         let report = ListeningCoverage(
             moments: Self.moments, songs: nil, recordedPlays: [], recordingSince: nil,

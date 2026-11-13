@@ -23,7 +23,11 @@ struct EraStore {
     /// Makes the database match `result`.
     ///
     /// - Moments are matched by `momentID` and updated in place. Moments in
-    ///   eras that were already frozen keep their songs, unless they had none.
+    ///   eras that were already frozen keep their songs, unless they were
+    ///   never matched (`nil`).
+    /// - An era that was already frozen takes its library additions once,
+    ///   while it has none, and keeps them after that: `dateAdded` doesn't
+    ///   change, so they're as stable as the rest of a frozen era.
     /// - Eras are matched by `eraID`, or else by sharing the most moments, so
     ///   an era whose first photo changed keeps its object and playlist.
     /// - Eras and moments that are no longer in the result are deleted,
@@ -54,6 +58,12 @@ struct EraStore {
                 context.insert(era)
             }
             era.update(from: built)
+            let isLocked = era.eraID.map(lockedEraIDs.contains) ?? false
+            if !isLocked {
+                era.assign(built.addedSongs, to: \.addedSongs)
+            } else if (era.addedSongs ?? []).isEmpty && !built.addedSongs.isEmpty {
+                era.addedSongs = built.addedSongs
+            }
             for id in built.draft.momentIDs {
                 // Set only when it moves, like `assign`, so an unchanged
                 // moment isn't saved again.
@@ -108,25 +118,56 @@ struct EraStore {
         var saved: [String: Moment] = [:]
         for photo in moments.sorted(by: { ($0.start, $0.id) < ($1.start, $1.id) }) {
             guard let eraID = eraOfMoment[photo.id], saved[photo.id] == nil else { continue }
-            let songs = result.songs[photo.id] ?? []
+            let matches = result.matches[photo.id]
             if let moment = existing[photo.id] {
                 moment.update(from: photo)
                 // A frozen era's songs stay as they are, except that a moment
-                // with none yet may still get some: it may have frozen before
+                // never matched may still get some: it may have frozen before
                 // its listening was recorded (or before listening was
                 // connected at all), and would otherwise stay empty for good.
-                if !lockedEraIDs.contains(eraID) || moment.songs.isEmpty {
-                    moment.assign(songs, to: \.songs)
+                if !lockedEraIDs.contains(eraID) || moment.songs == nil {
+                    moment.setMatches(matches)
                 }
                 saved[photo.id] = moment
             } else {
-                let moment = Moment(date: photo.start, songs: songs)
+                let moment = Moment(date: photo.start, songs: nil)
+                moment.setMatches(matches)
                 moment.update(from: photo)
                 context.insert(moment)
                 saved[photo.id] = moment
             }
         }
         return saved
+    }
+
+    // MARK: - One-off fixes
+
+    /// The `UserDefaults` key (shared with `@AppStorage`) recording that
+    /// `resetEmptyFrozenMomentSongs()` has run.
+    static let resetEmptyFrozenMomentSongsKey = "didResetEmptyFrozenMomentSongs"
+
+    /// Before moment songs could be `nil`, a moment that froze before any
+    /// listening was recorded was saved with `[]`, which now means "matched,
+    /// nothing found", so it would never get songs. This sets those back to
+    /// `nil`, once: afterwards `[]` means what it says.
+    func resetEmptyFrozenMomentSongsOnce(defaults: UserDefaults) throws {
+        guard !defaults.bool(forKey: Self.resetEmptyFrozenMomentSongsKey) else { return }
+        try resetEmptyFrozenMomentSongs()
+        defaults.set(true, forKey: Self.resetEmptyFrozenMomentSongsKey)
+    }
+
+    /// Sets every frozen moment with empty songs back to never matched.
+    /// Returns how many changed.
+    @discardableResult
+    func resetEmptyFrozenMomentSongs() throws -> Int {
+        let eras = try context.fetch(FetchDescriptor<Era>(predicate: #Predicate { $0.isFrozen }))
+        var reset = 0
+        for moment in eras.flatMap(\.moments) where moment.songs?.isEmpty == true {
+            moment.setMatches(nil)
+            reset += 1
+        }
+        if reset > 0 { try context.save() }
+        return reset
     }
 
     /// The stored era to reuse for `draft`: the one with the same id, or else

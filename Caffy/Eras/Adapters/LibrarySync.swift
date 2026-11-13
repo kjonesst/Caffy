@@ -16,8 +16,9 @@ enum LibrarySyncOutcome: Equatable {
 
 /// Keeps the saved eras in step with the user's photo library.
 ///
-/// One sync: read every photo → group into moments → record new listening →
-/// fetch listening → run the era pipeline (with saved frozen eras) → save. The pipeline and
+/// One sync: read every photo → group into moments → record new listening
+/// (reading the music library once) → fetch listening → run the era pipeline
+/// (with saved frozen eras and the library) → save. The pipeline and
 /// the photo reading run off the main actor; reading and saving the database
 /// happens here, on it.
 ///
@@ -33,6 +34,7 @@ final class LibrarySync {
     private let pipeline: EraPipeline
     private let calendar: Calendar
     private let now: () -> Date
+    private let defaults: UserDefaults
 
     private var isRunning = false
     private var runAgain = false
@@ -47,7 +49,8 @@ final class LibrarySync {
         recorder: ListeningRecorder? = nil,
         pipeline: EraPipeline,
         calendar: Calendar = .current,
-        now: @escaping () -> Date = { .now }
+        now: @escaping () -> Date = { .now },
+        defaults: UserDefaults = .standard
     ) {
         self.context = context
         self.reader = reader
@@ -56,6 +59,7 @@ final class LibrarySync {
         self.pipeline = pipeline
         self.calendar = calendar
         self.now = now
+        self.defaults = defaults
     }
 
     /// The app's sync: the real photo library, Apple's place names, photo
@@ -101,7 +105,8 @@ final class LibrarySync {
         let moments = await Self.group(photos)
         let now = now()
         // Before reading plays, so this sync sees everything played so far.
-        await recorder?.record(now: now)
+        // The library it reads also gives the eras' library additions.
+        let library = await recorder?.pass(now: now).library ?? []
 
         var plays: [ListeningEvent] = []
         if let first = moments.first {
@@ -112,8 +117,11 @@ final class LibrarySync {
 
         do {
             let store = EraStore(context: context)
+            try store.resetEmptyFrozenMomentSongsOnce(defaults: defaults)
             let frozen = try store.frozenEras()
-            let result = await pipeline.run(moments: moments, plays: plays, frozen: frozen, now: now, calendar: calendar)
+            let result = await pipeline.run(
+                moments: moments, plays: plays, library: library, frozen: frozen, now: now, calendar: calendar
+            )
             try store.save(result, moments: moments, now: now)
             return .synced(eras: result.eras.count, moments: moments.count)
         } catch {
