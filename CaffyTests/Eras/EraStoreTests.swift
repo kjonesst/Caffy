@@ -284,6 +284,25 @@ struct EraStoreTests {
         #expect(open.playlist?.lastUpdated == scenario.now)
     }
 
+    // MARK: - No caps
+
+    @Test func busyMomentsKeepEverySongAndShowTheirTop() async throws {
+        let titles = (1...20).map { "Song \($0)" }
+        let busy = Scenario()
+            .listen(to: "Tame Impala", genre: "Psychedelic", perDay: 80, titles: titles)
+            .live(at: .sydney, days: 10, photosPerWeek: 7)
+        try await sync(busy)
+        let limit = EraBuildConfig.standard.maxSongsPerMoment
+        let moment = try #require(try allMoments().first { ($0.songs?.count ?? 0) > limit })
+        let era = try #require(moment.era)
+
+        let playlist = Set(era.songs.map(\.song.id))
+        #expect(Set((moment.songs ?? []).map(\.id)).isSubset(of: playlist))
+        #expect(moment.shownSongs.count == limit)
+        #expect(moment.shownSongs == Array((moment.songs ?? []).prefix(limit)))
+        #expect(moment.displaySongs().count == limit)
+    }
+
     // MARK: - One-off reset of empty frozen moments
 
     @Test func emptyFrozenMomentsAreResetOnce() async throws {

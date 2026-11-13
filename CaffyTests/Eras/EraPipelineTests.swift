@@ -4,16 +4,20 @@ import Testing
 
 /// Tests for the library-additions stage inside `EraPipeline`.
 struct EraPipelineTests {
-    /// Home in Sydney, a song added just before a weekend in Melbourne, then
-    /// home again, so the trip is in the past.
+    /// Home in Sydney with a weekend in Melbourne inside it, now past. Songs
+    /// are added at noon just before the trip leaves, on its middle day, and
+    /// the day after it.
     private static let tripWithAdditions = Scenario()
         .listen(to: "Tame Impala", genre: "Psychedelic")
         .live(at: .sydney, days: 30)
-        .addToLibrary(["Road Song", "Highway Song"], by: "Courtney Barnett", genre: "Indie rock", plays: 8)
+        .addToLibrary(["Packing Song"], by: "Courtney Barnett", genre: "Indie rock", plays: 5)
         .trip(to: .melbourne, nights: 2)
+        // The trip filled three days; its middle day is two before the cursor.
+        .addToLibrary(["Road Song", "Highway Song"], by: "Courtney Barnett", genre: "Indie rock", plays: 8, hour: 18, daysBack: 2)
+        .addToLibrary(["Home Again Song"], by: "Courtney Barnett", genre: "Indie rock", plays: 5)
         .live(at: .sydney, days: 40)
 
-    @Test func aPastTripGetsTheSongsAddedForIt() async throws {
+    @Test func aNestedTripGetsOnlyTheSongsAddedDuringIt() async throws {
         let result = await PipelineHarness.run(Self.tripWithAdditions)
         let trip = try #require(result.eras.first { $0.draft.kind == .trip })
         #expect(trip.draft.end != nil)
@@ -26,8 +30,9 @@ struct EraPipelineTests {
         // Songs played near the trip's moments still come first.
         #expect(playlist.first?.evidence == .nearPlay)
 
-        // The home era around it doesn't get them too.
-        #expect(result.eras.filter { $0.draft.kind == .home }.allSatisfy { $0.addedSongs.isEmpty })
+        // The home era around it gets the songs from just before and after.
+        let homeAdded = Set(result.eras.filter { $0.draft.kind == .home }.flatMap(\.addedSongs).map(\.song.title))
+        #expect(homeAdded == ["Packing Song", "Home Again Song"])
     }
 
     @Test func withoutALibraryErasHaveNoAdditions() async {

@@ -22,8 +22,8 @@ struct LibraryAdditionsReportTests {
     private static let late = Window(id: "late", title: "Late", start: T.days(210), end: now, isTrip: false)
     private static let eras = [home, trip, late]
 
-    /// 45 songs added on day 20, played 1 to 45 times: a bulk import.
-    private static let bulk: [LibrarySongSnapshot] = (0..<45).map {
+    /// 80 songs added on day 20, played 1 to 80 times: a bulk import.
+    private static let bulk: [LibrarySongSnapshot] = (0..<80).map {
         .fixture(UInt64(1000 + $0), count: $0 + 1, added: T.days(20).addingTimeInterval(Double($0) * 60))
     }
 
@@ -33,7 +33,8 @@ struct LibraryAdditionsReportTests {
     }
 
     private static let duringTrip = LibrarySongSnapshot.fixture(1, count: 3, added: T.days(52))
-    /// Inside the home era, and in the trip's lead-in: the trip wins.
+    /// Inside the home era, and in the trip's lead-in: the home era wins,
+    /// because its own dates contain it.
     private static let beforeTrip = LibrarySongSnapshot.fixture(5, count: 2, added: T.days(48))
     /// In the late era's lead-in, after the home era ended.
     private static let beforeLate = LibrarySongSnapshot.fixture(2, count: 4, added: T.days(208.5))
@@ -62,8 +63,8 @@ struct LibraryAdditionsReportTests {
 
     @Test func countsDatesAdded() {
         let report = Self.report()
-        #expect(report.librarySongs == 59)
-        #expect(report.songsWithDateAdded == 57)
+        #expect(report.librarySongs == 94)
+        #expect(report.songsWithDateAdded == 92)
         #expect(report.songsWithoutDateAdded == 2)
         #expect(report.earliestAdded == T.days(20))
         #expect(report.latestAdded == T.days(208.5))
@@ -72,21 +73,21 @@ struct LibraryAdditionsReportTests {
     @Test func countsAdditionsPerDay() {
         let report = Self.report()
         let day = { Self.calendar.startOfDay(for: T.days($0)) }
-        #expect(report.topDays.map(\.count) == [45, 6, 2, 1, 1, 1, 1])
+        #expect(report.topDays.map(\.count) == [80, 6, 2, 1, 1, 1, 1])
         #expect(report.topDays.map(\.day) == [day(20), day(100), day(30), day(48), day(52), day(205), day(208.5)])
         #expect(report.bulkDays == [day(20)])
-        #expect(report.biggestDay?.count == 45)
-        #expect(report.biggestDayShare == 45.0 / 59.0)
+        #expect(report.biggestDay?.count == 80)
+        #expect(report.biggestDayShare == 80.0 / 94.0)
     }
 
     @Test func countsAdditionsPerMonthIncludingEmptyMonths() throws {
         let report = Self.report()
         #expect(report.months.count == LibraryAdditionsReport.monthsShown)
         #expect(report.months.map(\.month) == report.months.map(\.month).sorted())
-        #expect(report.months.reduce(0) { $0 + $1.count } == 57)
+        #expect(report.months.reduce(0) { $0 + $1.count } == 92)
         #expect(report.months.contains { $0.count == 0 })
         let bulkMonth = try #require(Self.calendar.dateInterval(of: .month, for: T.days(20))?.start)
-        #expect(try #require(report.months.first { $0.month == bulkMonth }).count >= 45)
+        #expect(try #require(report.months.first { $0.month == bulkMonth }).count >= 80)
     }
 
     // MARK: - Eras
@@ -94,21 +95,23 @@ struct LibraryAdditionsReportTests {
     @Test func countsEachStepPerEra() throws {
         let report = Self.report()
         let home = try Self.row("home", in: report)
-        // Bulk day, album, one song at home and one never played.
-        #expect(home.raw == 53)
-        #expect(home.played == 52)
+        // Bulk day, album, one song at home, one just before the trip and
+        // one never played.
+        #expect(home.raw == 89)
+        #expect(home.played == 88)
         // The bulk day keeps 5.
-        #expect(home.afterBulkDays == 5 + 6 + 1)
+        #expect(home.afterBulkDays == 5 + 6 + 2)
         // The album keeps 2.
-        #expect(home.afterAlbums == 5 + 2 + 1)
-        #expect(home.songs.count == 8)
+        #expect(home.afterAlbums == 5 + 2 + 2)
+        // No cap: every song left is kept.
+        #expect(home.songs.count == home.afterAlbums)
         #expect(home.isPast)
     }
 
     @Test func bulkDaysKeepTheirMostPlayed() throws {
         let home = try Self.row("home", in: Self.report())
         let kept = home.songs.map(\.snapshot.persistentID).filter { $0 >= 1000 && $0 < 2000 }
-        #expect(Set(kept) == [1040, 1041, 1042, 1043, 1044])
+        #expect(Set(kept) == [1075, 1076, 1077, 1078, 1079])
     }
 
     @Test func albumAddsKeepTheirMostPlayedTracks() throws {
@@ -125,12 +128,13 @@ struct LibraryAdditionsReportTests {
         #expect(filtered.afterAlbums.count == 4)
     }
 
-    @Test func tripsWinAdditionsDuringAndJustBeforeThem() throws {
+    @Test func nestedTripsTakeOnlyAdditionsDuringThem() throws {
         let report = Self.report()
         let trip = try Self.row("trip", in: report)
-        #expect(Set(trip.songs.map(\.snapshot.persistentID)) == [1, 5])
+        #expect(trip.songs.map(\.snapshot.persistentID) == [1])
+        // Added just before the trip, inside the home era's dates.
         let home = try Self.row("home", in: report)
-        #expect(!home.songs.contains { [1, 5].contains($0.snapshot.persistentID) })
+        #expect(home.songs.contains { $0.snapshot.persistentID == 5 })
     }
 
     @Test func leadInReachesTheLaterEraButNotBeyond() throws {
@@ -161,12 +165,10 @@ struct LibraryAdditionsReportTests {
         #expect(ids.isDisjoint(with: [6, 7, 8]))
     }
 
-    @Test func theCapApplies() throws {
-        var config = EraBuildConfig()
-        config.maxAdditionSongsPerEra = 3
-        let home = try Self.row("home", in: Self.report(config: config))
-        #expect(home.afterAlbums == 8)
-        #expect(home.songs.map(\.snapshot.persistentID) == [1044, 1043, 1042])
+    @Test func everyFilteredAdditionIsKeptBestFirst() throws {
+        let home = try Self.row("home", in: Self.report())
+        #expect(home.songs.count == 9)
+        #expect(home.songs.prefix(3).map(\.snapshot.persistentID) == [1079, 1078, 1077])
     }
 
     @Test func skipsLowerAScoreAndTripsRaiseIt() {
@@ -203,8 +205,8 @@ struct LibraryAdditionsReportTests {
         let text = Self.report().text
         #expect(text.contains("Home · home · "))
         #expect(text.contains("Trip · trip · "))
-        #expect(text.contains("  53 / 52 / 12 / 8 / 8"))
-        #expect(text.contains("1. Song 1044 – Artist 1044 (45 plays)"))
+        #expect(text.contains("  89 / 88 / 13 / 9\n"))
+        #expect(text.contains("1. Song 1079 – Artist 1079 (80 plays)"))
         #expect(text.contains("– now"))
     }
 

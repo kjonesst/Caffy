@@ -195,7 +195,9 @@ struct MusicMatcherTests {
         #expect(songs.map(\.song.id) == ["near", "far"])
     }
 
-    @Test func songsAreCappedPerMoment() {
+    @Test func everySongPlayedNearAMomentIsKept() {
+        // The per-moment limit is for showing a moment, not for matching:
+        // every song reaches the era's playlist.
         var config = EraBuildConfig()
         config.maxSongsPerMoment = 2
         let songs = Self.songs(for: Self.moment(), [
@@ -204,7 +206,7 @@ struct MusicMatcherTests {
             Self.play("b", at: 10),
             Self.play("c", at: 15)
         ], config: config)
-        #expect(songs.map(\.song.id) == ["b", "a"])
+        #expect(songs.map(\.song.id) == ["b", "a", "c"])
     }
 
     @Test func unmatchablePlaysAreSkipped() {

@@ -22,7 +22,9 @@ import Foundation
 /// 5. **Score:** `log(1 + plays) − 0.5 × log(1 + skips)`, times
 ///    `tripAdditionBoost` in trips. Ties go to the earlier addition, then
 ///    title, then id, so the result never depends on input order.
-/// 6. **Cap** at `maxAdditionSongsPerEra`.
+///
+/// There's no cap: an era gets every addition the evidence supports, and
+/// quality comes from the filters above, not from a count.
 nonisolated enum LibraryAdditions {
     /// What the stage needs to know about an era.
     struct EraWindow: Hashable, Sendable {
@@ -158,22 +160,33 @@ nonisolated enum LibraryAdditions {
     /// The one era a song added at `date` belongs to.
     ///
     /// An era reaches from `additionLeadIn` before its start to its end.
-    /// When more than one reaches the date:
-    /// - A trip wins over a home era. Trips sit inside home eras' dates, and
-    ///   music added during or just before a trip is most likely for it.
-    /// - Then an era whose own dates contain the date wins over one that only
-    ///   reaches it through its lead-in.
-    /// - Then the later era wins: the music was added ahead of it.
+    /// When more than one reaches the date, in order:
+    /// 1. An era whose own dates contain the date beats one that only reaches
+    ///    it through its lead-in.
+    /// 2. The shortest era wins. Trips sit inside home eras' dates, so a trip
+    ///    takes the songs added during it and the home era the rest.
+    /// 3. The later start wins (the music was added ahead of it), then the
+    ///    lower id.
     static func era(for date: Date, in eras: [EraWindow], config: EraBuildConfig = .standard) -> EraWindow? {
-        func key(_ era: EraWindow) -> (Int, Int, Date, String) {
-            (era.isTrip ? 1 : 0, era.start <= date ? 1 : 0, era.start, era.id)
-        }
-        return eras
+        eras
             .filter { $0.start.addingTimeInterval(-config.additionLeadIn) <= date && date <= $0.end }
-            .max { key($0) < key($1) }
+            .min { isBetterClaim($0, than: $1, on: date) }
     }
 
-    /// Steps 5 and 6: scores each era's songs, best first, and caps them.
+    /// Whether `a` has the better claim to a song added at `date` (see
+    /// `era(for:in:config:)`).
+    private static func isBetterClaim(_ a: EraWindow, than b: EraWindow, on date: Date) -> Bool {
+        let containsA = a.start <= date
+        let containsB = b.start <= date
+        if containsA != containsB { return containsA }
+        let lengthA = a.end.timeIntervalSince(a.start)
+        let lengthB = b.end.timeIntervalSince(b.start)
+        if lengthA != lengthB { return lengthA < lengthB }
+        if a.start != b.start { return a.start > b.start }
+        return a.id < b.id
+    }
+
+    /// Step 5: scores each era's songs, best first.
     static func ranked(
         _ assigned: [String: [LibrarySongSnapshot]],
         eras: [EraWindow],
@@ -183,7 +196,7 @@ nonisolated enum LibraryAdditions {
         for era in eras where isTrip[era.id] == nil { isTrip[era.id] = era.isTrip }
         var result: [String: [Candidate]] = [:]
         for (id, songs) in assigned where !songs.isEmpty {
-            result[id] = Array(ranked(songs, isTrip: isTrip[id] ?? false, config: config).prefix(config.maxAdditionSongsPerEra))
+            result[id] = ranked(songs, isTrip: isTrip[id] ?? false, config: config)
         }
         return result
     }

@@ -118,14 +118,25 @@ nonisolated struct Scenario: Sendable {
         return next
     }
 
-    /// Adds songs to the music library around noon on the current day (just
-    /// before a trip that starts today), each later played `plays` times.
-    /// `album` puts them all on one album: a whole album added at once.
-    func addToLibrary(_ titles: [String], by artist: String, genre: String, plays: Int = 6, album: String? = nil) -> Scenario {
+    /// Adds songs to the music library at `hour` o'clock on the current day
+    /// (noon: just before a trip that starts today), or `daysBack` days
+    /// earlier, each later played `plays` times. `album` puts them all on
+    /// one album: a whole album added at once.
+    func addToLibrary(
+        _ titles: [String],
+        by artist: String,
+        genre: String,
+        plays: Int = 6,
+        album: String? = nil,
+        hour: Int = 12,
+        daysBack: Int = 0
+    ) -> Scenario {
         var next = self
         let albumID = album.map { _ in UInt64(900_000 + library.count) }
+        let day = calendar.date(byAdding: .day, value: -daysBack, to: cursor)!
+        let at = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: day)!
         for (index, title) in titles.enumerated() {
-            next.addSong(title: title, artist: artist, genre: genre, plays: max(0, plays - index), album: album, albumID: albumID, minute: index)
+            next.addSong(title: title, artist: artist, genre: genre, plays: max(0, plays - index), album: album, albumID: albumID, at: at, minute: index)
         }
         return next
     }
@@ -135,7 +146,7 @@ nonisolated struct Scenario: Sendable {
     func bulkImport(_ count: Int, by artist: String = "Various Artists", genre: String = "Pop") -> Scenario {
         var next = self
         for index in 0..<count {
-            next.addSong(title: "Imported Song \(index + 1)", artist: artist, genre: genre, plays: index % 4, album: nil, albumID: nil, minute: index)
+            next.addSong(title: "Imported Song \(index + 1)", artist: artist, genre: genre, plays: index % 4, album: nil, albumID: nil, at: time(hour: 12), minute: index)
         }
         return next
     }
@@ -237,7 +248,7 @@ nonisolated struct Scenario: Sendable {
         }
     }
 
-    private mutating func addSong(title: String, artist: String, genre: String, plays: Int, album: String?, albumID: UInt64?, minute: Int) {
+    private mutating func addSong(title: String, artist: String, genre: String, plays: Int, album: String?, albumID: UInt64?, at time: Date, minute: Int) {
         let id = UInt64(100_000 + library.count + 1)
         library.append(LibrarySongSnapshot(
             persistentID: id,
@@ -247,7 +258,7 @@ nonisolated struct Scenario: Sendable {
             genre: genre,
             duration: 240,
             playCount: plays,
-            dateAdded: time(hour: 12).addingTimeInterval(Double(minute) * 60),
+            dateAdded: time.addingTimeInterval(Double(minute) * 60),
             albumID: albumID,
             albumTitle: album
         ))

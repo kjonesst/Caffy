@@ -14,13 +14,6 @@ struct LibraryAdditionsTests {
         return calendar
     }()
 
-    /// No cap, so counts show what the other rules did.
-    private static let uncapped: EraBuildConfig = {
-        var config = EraBuildConfig()
-        config.maxAdditionSongsPerEra = 1_000
-        return config
-    }()
-
     private static func home(_ id: String, from start: Double, to end: Double) -> Window {
         Window(id: id, start: T.days(start), end: T.days(end), isTrip: false)
     }
@@ -32,7 +25,7 @@ struct LibraryAdditionsTests {
     private static func ids(
         _ eras: [Window],
         _ library: [LibrarySongSnapshot],
-        config: EraBuildConfig = uncapped
+        config: EraBuildConfig = .standard
     ) -> [String: [UInt64]] {
         LibraryAdditions.candidates(eras: eras, library: library, calendar: calendar, config: config)
             .mapValues { $0.map(\.snapshot.persistentID) }
@@ -61,22 +54,38 @@ struct LibraryAdditionsTests {
         #expect(Self.ids([first, second], library) == ["a": [1], "b": [2]])
 
         // Neither era contains it: both reach it only through their lead-in.
-        let early = Self.home("c", from: 10, to: 20)
-        let later = Self.home("d", from: 11, to: 30)
-        #expect(Self.ids([early, later], [.fixture(3, count: 1, added: T.days(8.5))]) == ["d": [3]])
+        // The shorter one wins.
+        let short = Self.home("c", from: 10, to: 20)
+        let long = Self.home("d", from: 11, to: 30)
+        #expect(Self.ids([short, long], [.fixture(3, count: 1, added: T.days(8.5))]) == ["c": [3]])
+        // As long as each other: the later one wins.
+        let early = Self.home("e", from: 10, to: 20)
+        let later = Self.home("f", from: 11, to: 21)
+        #expect(Self.ids([early, later], [.fixture(4, count: 1, added: T.days(8.5))]) == ["f": [4]])
     }
 
-    @Test func tripsWinOverTheHomeEraAroundThem() {
+    @Test func aNestedTripTakesOnlyItsOwnDates() {
         let home = Self.home("home", from: 0, to: 100)
         let trip = Self.trip("trip", from: 40, to: 45)
         let library: [LibrarySongSnapshot] = [
             .fixture(1, count: 1, added: T.days(38)),    // just before the trip
             .fixture(2, count: 1, added: T.days(42)),    // during it
-            .fixture(3, count: 1, added: T.days(50))     // after it
+            .fixture(3, count: 1, added: T.days(46)),    // the day after it
+            .fixture(4, count: 1, added: T.days(50))     // well after it
         ]
         let ids = Self.ids([home, trip], library)
-        #expect(Set(ids["trip"] ?? []) == [1, 2])
-        #expect(ids["home"] == [3])
+        #expect(ids["trip"] == [2])
+        #expect(ids["home"] == [1, 3, 4])
+    }
+
+    @Test func theShortestContainingEraWins() {
+        let long = Self.home("long", from: 0, to: 100)
+        let short = Self.home("short", from: 20, to: 40)
+        let library: [LibrarySongSnapshot] = [
+            .fixture(1, count: 1, added: T.days(30)),
+            .fixture(2, count: 1, added: T.days(50))
+        ]
+        #expect(Self.ids([long, short], library) == ["short": [1], "long": [2]])
     }
 
     @Test func aSongIsNeverInTwoEras() {
@@ -97,10 +106,10 @@ struct LibraryAdditionsTests {
         func day(_ count: Int) -> [LibrarySongSnapshot] {
             (0..<count).map { .fixture(UInt64($0 + 1), count: $0 + 1, added: T.days(5).addingTimeInterval(Double($0) * 60)) }
         }
-        // At the threshold, nothing is dropped.
-        #expect(Self.ids([era], day(40))["a"]?.count == 40)
+        // At the threshold (75), nothing is dropped.
+        #expect(Self.ids([era], day(75))["a"]?.count == 75)
         // Over it, only the five most played stay, best first.
-        #expect(Self.ids([era], day(41))["a"] == [41, 40, 39, 38, 37])
+        #expect(Self.ids([era], day(76))["a"] == [76, 75, 74, 73, 72])
     }
 
     @Test func albumAddsKeepTheirMostPlayedTracks() {
@@ -156,12 +165,12 @@ struct LibraryAdditionsTests {
         #expect(boosted > plain)
     }
 
-    @Test func theCapApplies() {
-        let era = Self.home("a", from: 0, to: 60)
-        let library = (0..<30).map { LibrarySongSnapshot.fixture(UInt64($0 + 1), count: $0 + 1, added: T.days(Double($0) + 0.5)) }
-        let ids = Self.ids([era], library, config: .standard)["a"] ?? []
-        #expect(ids.count == 25)
-        #expect(ids.first == 30)
+    @Test func thereIsNoCap() {
+        let era = Self.home("a", from: 0, to: 70)
+        let library = (0..<60).map { LibrarySongSnapshot.fixture(UInt64($0 + 1), count: $0 + 1, added: T.days(Double($0) + 0.5)) }
+        let ids = Self.ids([era], library)["a"] ?? []
+        #expect(ids.count == 60)
+        #expect(ids == (1...60).reversed().map(UInt64.init))
     }
 
     @Test func theOutputIsDeterministic() {

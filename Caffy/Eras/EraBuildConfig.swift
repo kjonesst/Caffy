@@ -17,7 +17,9 @@ nonisolated struct EraBuildConfig: Sendable, Equatable {
     /// Plays further than this outside the window don't count at all
     /// (four half-lives, where the weight has dropped to 1/16).
     var matchDecayCutoff: TimeInterval = 2 * 60 * 60
-    /// The most songs a single moment keeps.
+    /// The most songs shown against a single moment. A moment keeps every
+    /// song played near it, and they all reach its era's playlist; this only
+    /// limits what one photo moment shows.
     var maxSongsPerMoment: Int = 8
     /// When nothing plays near a moment, fall back to songs from the same day,
     /// marked as a loose match.
@@ -95,8 +97,9 @@ nonisolated struct EraBuildConfig: Sendable, Equatable {
     var additionLeadIn: TimeInterval = 3 * 24 * 60 * 60
     /// A local day with more additions than this was probably a bulk import
     /// (joining Apple Music, turning on iCloud Music Library), not taste.
-    /// Only its `bulkDayKeep` most-played songs count.
-    var bulkDayThreshold: Int = 40
+    /// Only its `bulkDayKeep` most-played songs count. Binges of up to ~75
+    /// songs are real taste (checked against a real library), so they pass.
+    var bulkDayThreshold: Int = 75
     /// How many songs a bulk day keeps, most played first.
     var bulkDayKeep: Int = 5
     /// When several tracks from one album were added within
@@ -109,8 +112,6 @@ nonisolated struct EraBuildConfig: Sendable, Equatable {
     /// Songs played fewer times than this don't count: adding a song isn't
     /// the same as listening to it.
     var minPlayCountForAddition: Int = 1
-    /// The most library-addition songs one era keeps.
-    var maxAdditionSongsPerEra: Int = 25
     /// Additions during a trip are stronger evidence than additions during a
     /// long home era, so their scores are multiplied by this.
     var tripAdditionBoost: Double = 1.5

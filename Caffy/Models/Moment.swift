@@ -93,6 +93,12 @@ extension Moment {
         assign(matches?.first?.evidence == .loosePlay, to: \.songsAreLoose)
     }
 
+    /// The moment's own songs as shown against it: the strongest
+    /// `maxSongsPerMoment`. Its era's playlist still gets all of them.
+    var shownSongs: [Song] {
+        Array((songs ?? []).prefix(EraBuildConfig.standard.maxSongsPerMoment))
+    }
+
     /// Whether this moment has no songs of its own, so it shows its era's
     /// songs instead (labelled "From this era").
     var isEraFallback: Bool {
@@ -102,8 +108,8 @@ extension Moment {
     /// The songs to show for this moment: its own, or else its era's top
     /// songs. Check `isEraFallback` before presenting them: era songs must
     /// never look as if they were playing at this moment.
-    func displaySongs(limit: Int = 8) -> [Song] {
-        if let songs, !songs.isEmpty { return songs }
+    func displaySongs(limit: Int = EraBuildConfig.standard.maxSongsPerMoment) -> [Song] {
+        if let songs, !songs.isEmpty { return Array(songs.prefix(limit)) }
         guard let era, era.isLive else { return [] }
         return Array(era.songs.prefix(limit).map(\.song))
     }

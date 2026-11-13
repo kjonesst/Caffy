@@ -52,7 +52,7 @@ nonisolated struct LibraryAdditionsReport: Equatable, Sendable {
         let afterBulkDays: Int
         /// …after album collapsing.
         let afterAlbums: Int
-        /// The era's final songs, best first, capped.
+        /// The era's songs, best first: every one left after album collapsing.
         let songs: [LibraryAdditions.Candidate]
         /// The saved era's playlist, if known.
         var playlist: PlaylistSplit? = nil
@@ -123,7 +123,7 @@ nonisolated struct LibraryAdditionsReport: Equatable, Sendable {
         let played = LibraryAdditions.assign(filtered.eligible, to: eras, config: config)
         let afterBulkDays = LibraryAdditions.assign(filtered.afterBulkDays, to: eras, config: config)
         let afterAlbums = LibraryAdditions.assign(filtered.afterAlbums, to: eras, config: config)
-        let final = LibraryAdditions.ranked(afterAlbums, eras: eras, config: config)
+        let ranked = LibraryAdditions.ranked(afterAlbums, eras: eras, config: config)
         self.eras = eras
             .sorted { ($0.start, $0.id) < ($1.start, $1.id) }
             .map { era in
@@ -134,7 +134,7 @@ nonisolated struct LibraryAdditionsReport: Equatable, Sendable {
                     played: played[era.id]?.count ?? 0,
                     afterBulkDays: afterBulkDays[era.id]?.count ?? 0,
                     afterAlbums: afterAlbums[era.id]?.count ?? 0,
-                    songs: final[era.id] ?? [],
+                    songs: ranked[era.id] ?? [],
                     playlist: playlists[era.id]
                 )
             }
@@ -202,14 +202,14 @@ nonisolated struct LibraryAdditionsReport: Equatable, Sendable {
         if eras.isEmpty {
             lines.append("No saved eras yet: sync from Home first")
         } else {
-            lines.append("Eras: added / played / bulk days / albums / final")
+            lines.append("Eras: added / played / bulk days / albums")
             for row in eras {
                 let era = row.era
                 let name = era.title.isEmpty ? era.id : era.title
                 // The current era's window ends at `now`.
                 let end = era.end < now ? day(era.end) : "now"
                 lines.append("\(name) · \(era.isTrip ? "trip" : "home") · \(day(era.start)) – \(end)")
-                lines.append("  \(row.raw) / \(row.played) / \(row.afterBulkDays) / \(row.afterAlbums) / \(row.songs.count)")
+                lines.append("  \(row.raw) / \(row.played) / \(row.afterBulkDays) / \(row.afterAlbums)")
                 if let playlist = row.playlist {
                     lines.append("  playlist: near \(playlist.near) · added \(playlist.added) · loose \(playlist.loose)")
                 }

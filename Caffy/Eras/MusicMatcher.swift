@@ -61,7 +61,7 @@ nonisolated enum MusicMatcher {
             let nearby = index.plays(overlapping: reach).map { play in
                 (play, weight(of: play.interval, around: window, config: config))
             }
-            var songs = rank(nearby, isLoose: false, limit: config.maxSongsPerMoment)
+            var songs = rank(nearby, isLoose: false)
 
             if songs.isEmpty && config.dayFallbackMatching {
                 let days = DateInterval(
@@ -69,7 +69,7 @@ nonisolated enum MusicMatcher {
                     end: calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: moment.end))!
                 )
                 let sameDay = index.plays(overlapping: days).map { ($0, 1.0) }
-                songs = rank(sameDay, isLoose: true, limit: config.maxSongsPerMoment)
+                songs = rank(sameDay, isLoose: true)
             }
             return MatchedMoment(moment: moment, songs: songs)
         }
@@ -129,10 +129,11 @@ nonisolated enum MusicMatcher {
 
     // MARK: - Ranking
 
-    /// Adds up each song's weighted plays and returns the strongest songs:
-    /// highest score, then most plays, then song id so ties never depend on
-    /// input order.
-    private static func rank(_ weighted: [(ListeningEvent, Double)], isLoose: Bool, limit: Int) -> [SongMatch] {
+    /// Adds up each song's weighted plays and returns every song, strongest
+    /// first: highest score, then most plays, then song id so ties never
+    /// depend on input order. Nothing is cut here, so every real play reaches
+    /// the era's playlist; a moment shows only its top `maxSongsPerMoment`.
+    private static func rank(_ weighted: [(ListeningEvent, Double)], isLoose: Bool) -> [SongMatch] {
         var order: [String] = []
         var songs: [String: Song] = [:]
         var scores: [String: Double] = [:]
@@ -153,8 +154,6 @@ nonisolated enum MusicMatcher {
         return order
             .map { SongMatch(song: songs[$0]!, score: scores[$0]!, playCount: counts[$0]!, isLoose: isLoose) }
             .sorted { ($1.score, $1.playCount, $0.song.id) < ($0.score, $0.playCount, $1.song.id) }
-            .prefix(limit)
-            .map { $0 }
     }
 }
 
