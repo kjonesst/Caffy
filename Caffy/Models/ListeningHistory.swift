@@ -88,7 +88,12 @@ nonisolated final class ListeningCheck {
 /// derives (and may one day clear with "Rebuild eras"). Only "Delete all
 /// data" should clear it, through `deleteAll(in:)`.
 nonisolated enum ListeningHistoryStore {
-    static let models: [any PersistentModel.Type] = [LibrarySongState.self, RecordedPlay.self, ListeningCheck.self]
+    /// `PublishedPlaylistRecord` isn't listening history, but it lives here
+    /// for the same reason: it can't be rebuilt, and must survive a rebuild
+    /// of the derived store.
+    static let models: [any PersistentModel.Type] = [
+        LibrarySongState.self, RecordedPlay.self, ListeningCheck.self, PublishedPlaylistRecord.self
+    ]
 
     /// The store's configuration.
     ///

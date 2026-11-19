@@ -35,6 +35,10 @@ final class LibrarySync {
     private let calendar: Calendar
     private let now: () -> Date
     private let defaults: UserDefaults
+    /// Re-links era playlists to their published Apple Music playlists after
+    /// each save (see `PlaylistLedger`). Needs a container with the listening
+    /// history store, so only the app's own sync turns it on.
+    private let relinksPlaylists: Bool
 
     private var isRunning = false
     private var runAgain = false
@@ -50,8 +54,10 @@ final class LibrarySync {
         pipeline: EraPipeline,
         calendar: Calendar = .current,
         now: @escaping () -> Date = { .now },
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        relinksPlaylists: Bool = false
     ) {
+        self.relinksPlaylists = relinksPlaylists
         self.context = context
         self.reader = reader
         self.listening = listening
@@ -71,7 +77,8 @@ final class LibrarySync {
             reader: PhotoKitLibraryReader(),
             listening: RecordedListeningSource(container: context.container),
             recorder: ListeningRecorder(modelContainer: context.container, reader: MediaPlayerLibraryReader()),
-            pipeline: EraPipeline(namer: MapKitPlaceLookup.cachedNamer(), sampler: PhotoKitColorSampler())
+            pipeline: EraPipeline(namer: MapKitPlaceLookup.cachedNamer(), sampler: PhotoKitColorSampler()),
+            relinksPlaylists: true
         )
     }
 
@@ -123,6 +130,9 @@ final class LibrarySync {
                 moments: moments, plays: plays, library: library, frozen: frozen, now: now, calendar: calendar
             )
             try store.save(result, moments: moments, now: now)
+            if relinksPlaylists {
+                try PlaylistLedger(context: context).relinkPlaylists()
+            }
             return .synced(eras: result.eras.count, moments: moments.count)
         } catch {
             context.rollback()

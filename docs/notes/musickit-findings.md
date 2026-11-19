@@ -37,7 +37,25 @@ Open. Caffy batches 100 at a time until this is checked.
 ## Decisions
 
 ### Fallback for songs without a catalog ID
-Proposed, not decided. See the Task 2 proposal; this section records the decision once it's made.
+**Proposed, not decided.** For now, `PlaylistSongMatcher` leaves these songs out, giving the reason `noCatalogID`, and the spike's preview lists them.
+
+The proposal, for songs whose id is `library-<persistentID>`:
+
+1. **Search:** run `MusicCatalogSearchRequest(term: "<title> <artist>", types: [Song.self])` and keep the top 5 results.
+2. **Normalise** both sides:
+   - lowercase, and fold diacritics
+   - remove bracketed version notes such as "(Remastered 2011)" or "[Live]", and trailing " - Live" or " - Remix" suffixes
+   - remove "feat." and "ft." segments
+   - collapse punctuation and whitespace
+3. **Accept** a result only when all of these hold:
+   - the normalised artist is exactly the same
+   - the normalised title is exactly the same
+   - the duration is within ±3 s. This needs `duration` added to `Song`, taken from `LibrarySongSnapshot.duration`.
+4. **Otherwise** skip the song and list it in the report. Never pick the "closest" match.
+
+**My recommendation: don't build it yet.** Only 7 of 1,518 songs have no catalog ID (see Other device observations). A wrong match puts a song you never lived with into an "evidence" playlist, which costs more than leaving out a few imported files.
+
+**Decision:** pending.
 
 How much it matters: on 19 Nov 2026, 7 of 1,518 library songs (0.5%) had no catalog ID. With so few, skipping them and reporting each one may be enough, and the catalog search fallback may not be worth its risk of wrong matches.
 
