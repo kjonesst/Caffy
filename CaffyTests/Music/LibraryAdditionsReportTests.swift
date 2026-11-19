@@ -210,6 +210,32 @@ struct LibraryAdditionsReportTests {
         #expect(text.contains("– now"))
     }
 
+    @Test func playlistLineShowsTheTotalAndTheEvidenceSplit() {
+        func near(_ id: String, observed: Bool) -> EraSong {
+            EraSong(song: Song(id: id, title: id, artist: "A"), evidence: .nearPlay, score: 1, hasObservedPlay: observed)
+        }
+        let added = EraSong(song: Song(id: "both", title: "both", artist: "A"), evidence: .libraryAdded, score: 1)
+        let fresh = EraSong(song: Song(id: "fresh", title: "fresh", artist: "A"), evidence: .libraryAdded, score: 1)
+        let momentSongs = [
+            [near("twice", observed: false), near("seen", observed: true), near("both", observed: false)],
+            [near("twice", observed: false), near("lonely", observed: false)]
+        ]
+        let playlist = EraPlaylist.build(momentSongs: momentSongs, added: [added, fresh])
+        let split = LibraryAdditionsReport.PlaylistSplit(
+            momentSongs: momentSongs, added: [added, fresh], playlist: playlist, corroborated: ["both"]
+        )
+        // "both" is near and added: counted in each group, once in the total.
+        #expect(split == LibraryAdditionsReport.PlaylistSplit(
+            total: 5, near: 4, multiMoment: 1, observed: 1, seededOnly: 3, added: 2, loose: 0, flagWouldDrop: 2
+        ))
+        #expect(split.text == "playlist: 5 · near 4 (multi-moment 1 · observed 1 · seeded-only 3) · added 2 · loose 0 · flag would drop 2")
+
+        let report = LibraryAdditionsReport(
+            songs: Self.library, eras: Self.eras, playlists: ["late": split], now: Self.now, calendar: Self.calendar
+        )
+        #expect(report.text.contains("  " + split.text + "\n"))
+    }
+
     @Test func withoutErasSaysToSyncFirst() {
         #expect(Self.report(eras: []).text.contains("No saved eras yet"))
     }

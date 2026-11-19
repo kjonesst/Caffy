@@ -119,6 +119,13 @@ nonisolated struct EraBuildConfig: Sendable, Equatable {
     /// go in the era's playlist too. Off: same-day matches against a single
     /// last-played date put most of the library into the newest era.
     var includeLoosePlaysInEraPlaylist: Bool = false
+    /// When on, a song whose only near evidence in an era is a single seeded
+    /// play is left out of that era's playlist unless corroborated: its
+    /// `dateAdded` falls in the era's addition window
+    /// (`start − additionLeadIn` to `end`), or it has an observed play
+    /// within the era's dates. Moments keep every match either way. See
+    /// `EraPlaylist.NearEvidence.isSeededOnly`.
+    var seededPlaysNeedCorroboration: Bool = false
 
     // MARK: - Palette
 

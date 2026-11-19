@@ -4,10 +4,20 @@ import SwiftData
 /// What one recording pass found.
 nonisolated struct RecordSummary: Equatable, Sendable {
     let songCount: Int
+    /// Exact plays Caffy saw happen.
     let newExactPlays: Int
     let newEstimatedPlays: Int
+    /// Last-played dates from before recording (see `ListeningEvent.isSeeded`).
+    let newSeededPlays: Int
 
-    var newPlays: Int { newExactPlays + newEstimatedPlays }
+    init(songCount: Int, newExactPlays: Int, newEstimatedPlays: Int, newSeededPlays: Int = 0) {
+        self.songCount = songCount
+        self.newExactPlays = newExactPlays
+        self.newEstimatedPlays = newEstimatedPlays
+        self.newSeededPlays = newSeededPlays
+    }
+
+    var newPlays: Int { newExactPlays + newEstimatedPlays + newSeededPlays }
 }
 
 /// One recording pass: what it found, and the library it read, so a sync can
@@ -34,15 +44,24 @@ actor ListeningRecorder: ModelActor {
 
     private let reader: any MusicLibraryReader
     private let maxEstimatedWindow: TimeInterval
+    private let defaults: UserDefaults
     /// The pass under way, if any, so a second call waits for it instead of
     /// comparing against half-saved state.
     private var inFlight: Task<RecordPass, Never>?
 
-    init(modelContainer: ModelContainer, reader: any MusicLibraryReader, config: EraBuildConfig = .standard) {
+    /// - Parameter defaults: where one-off fixes to saved history remember
+    ///   that they've run.
+    init(
+        modelContainer: ModelContainer,
+        reader: any MusicLibraryReader,
+        config: EraBuildConfig = .standard,
+        defaults: UserDefaults = .standard
+    ) {
         self.modelContainer = modelContainer
         modelExecutor = DefaultSerialModelExecutor(modelContext: ModelContext(modelContainer))
         self.reader = reader
         maxEstimatedWindow = config.maxEstimatedPlayWindow
+        self.defaults = defaults
     }
 
     /// Reads the library and saves any new plays. Returns `nil` when Caffy
@@ -66,6 +85,9 @@ actor ListeningRecorder: ModelActor {
     }
 
     private func recordOnce(now: Date) async -> RecordPass {
+        // History recorded before seeded plays were told apart. If it fails,
+        // it runs again next pass.
+        try? ListeningHistoryStore.markSeededPlaysOnce(in: modelContext, defaults: defaults)
         guard let songs = await reader.songs() else { return RecordPass(summary: nil, library: nil) }
         return RecordPass(summary: savePlays(songs, now: now), library: songs)
     }
@@ -83,6 +105,7 @@ actor ListeningRecorder: ModelActor {
 
             var exact = 0
             var estimated = 0
+            var seeded = 0
             for song in songs {
                 let state = states[song.key]
                 let previous = state.map { PlayHistoryDiff.State(lastPlayedDate: $0.lastPlayedDate, playCount: $0.playCount) }
@@ -92,7 +115,13 @@ actor ListeningRecorder: ModelActor {
                 )
                 for play in plays {
                     modelContext.insert(RecordedPlay(play, recordedAt: now))
-                    if play.isEstimated { estimated += 1 } else { exact += 1 }
+                    if play.isSeeded {
+                        seeded += 1
+                    } else if play.isEstimated {
+                        estimated += 1
+                    } else {
+                        exact += 1
+                    }
                 }
 
                 if let state {
@@ -110,9 +139,11 @@ actor ListeningRecorder: ModelActor {
                 }
             }
 
-            modelContext.insert(ListeningCheck(at: now, songCount: songs.count, newExactPlays: exact, newEstimatedPlays: estimated))
+            modelContext.insert(ListeningCheck(
+                at: now, songCount: songs.count, newExactPlays: exact, newEstimatedPlays: estimated, newSeededPlays: seeded
+            ))
             try modelContext.save()
-            return RecordSummary(songCount: songs.count, newExactPlays: exact, newEstimatedPlays: estimated)
+            return RecordSummary(songCount: songs.count, newExactPlays: exact, newEstimatedPlays: estimated, newSeededPlays: seeded)
         } catch {
             modelContext.rollback()
             return nil
@@ -124,7 +155,8 @@ actor ListeningRecorder: ModelActor {
 ///
 /// Every song's current last-played time is recorded as an exact play, so
 /// after a recording pass this covers everything `MediaPlayerListeningSource`
-/// sees, plus every earlier play Caffy noticed.
+/// sees, plus every earlier play Caffy noticed. Last-played dates from before
+/// recording began come back seeded (`ListeningEvent.isSeeded`).
 nonisolated struct RecordedListeningSource: ListeningSource {
     let container: ModelContainer
 
@@ -147,14 +179,27 @@ nonisolated struct RecordedListeningSource: ListeningSource {
     }
 
     /// Drops plays of the same song over the same interval, keeping the
-    /// first. The same catalog song seen again under a new library id records
-    /// its last play a second time.
+    /// first, except that an observed play wins over a seeded one. The same
+    /// catalog song seen again under a new library id records its last play a
+    /// second time, seeded.
     static func unique(_ plays: [ListeningEvent]) -> [ListeningEvent] {
         struct Key: Hashable {
             let songID: String
             let interval: DateInterval
         }
-        var seen = Set<Key>()
-        return plays.filter { seen.insert(Key(songID: $0.song.id, interval: $0.interval)).inserted }
+        var kept: [Key: Int] = [:]
+        var result: [ListeningEvent] = []
+        for play in plays {
+            let key = Key(songID: play.song.id, interval: play.interval)
+            if let index = kept[key] {
+                if result[index].isSeeded && !play.isSeeded {
+                    result[index] = play
+                }
+            } else {
+                kept[key] = result.count
+                result.append(play)
+            }
+        }
+        return result
     }
 }

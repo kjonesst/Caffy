@@ -30,6 +30,11 @@ nonisolated struct EraSong: Codable, Hashable, Sendable, Identifiable {
     /// For plays, the matcher's weight (summed over the era's moments in a
     /// playlist). For library additions, `LibraryAdditions.score`.
     var score: Double
+    /// For plays, whether any of them Caffy saw happen, rather than all being
+    /// seeded last-played dates (`ListeningEvent.isSeeded`). `nil` when not
+    /// known: library additions, and moments saved before plays were told
+    /// apart. Unknown never counts as seeded-only.
+    var hasObservedPlay: Bool? = nil
 
     var id: String { song.id }
 }

@@ -26,8 +26,8 @@ struct ListeningCoverageTests {
     private static let old = moment("old", daysAgo: 100)
     private static let moments = [recent, lastMonth, old]
 
-    private static func play(_ songID: String, at date: Date) -> ListeningEvent {
-        ListeningEvent(song: Song(id: songID, title: songID, artist: songID), interval: DateInterval(start: date, duration: 0))
+    private static func play(_ songID: String, at date: Date, seeded: Bool = false) -> ListeningEvent {
+        ListeningEvent(song: Song(id: songID, title: songID, artist: songID), interval: DateInterval(start: date, duration: 0), isSeeded: seeded)
     }
 
     /// The library: one song last played during the recent moment, one never
@@ -89,10 +89,52 @@ struct ListeningCoverageTests {
             isEstimated: true,
             isMatchable: false
         )
-        let report = Self.coverage(recorded: Self.recorded + [vague])
+        let seeded = Self.play("s", at: Self.old.start, seeded: true)
+        let report = Self.coverage(recorded: Self.recorded + [vague, seeded])
+        #expect(report.seededPlays == 1)
         #expect(report.exactPlays == 2)
         #expect(report.estimatedPlays == 1)
         #expect(report.unmatchablePlays == 1)
+        #expect(report.text.contains(
+            "Plays: 1 seeded (last-played dates from before recording) · 2 observed exact · 1 estimated (1 too vague to match)"
+        ))
+    }
+
+    @Test func observedOnlyColumnIgnoresSeededPlays() {
+        let seeded = [
+            Self.play("a", at: Self.recent.start.addingTimeInterval(5 * 60), seeded: true),
+            Self.play("x", at: Self.lastMonth.start.addingTimeInterval(-10 * 60))
+        ]
+        let report = Self.coverage(recorded: seeded)
+        #expect(report.recordedMatches[.week] == ListeningCoverage.MatchCounts(near: 1))
+        #expect(report.observedMatches[.week]?.near ?? 0 == 0)
+        #expect(report.observedMatches[.month] == ListeningCoverage.MatchCounts(near: 1))
+        #expect(report.text.contains("observed only"))
+    }
+
+    @Test func verdictJudgesObservedPlaysOnly() {
+        // Both moments only near seeded plays: recorded history would pass.
+        let seeded = Self.recorded.map { play in
+            var play = play
+            play.isSeeded = true
+            return play
+        }
+        #expect(Self.coverage(recorded: seeded).verdict == .fail(nearShare: 0))
+    }
+
+    @Test func verdictJudgesMomentsSinceRecordingBegan() {
+        // Recording began 15 days ago: the recent moment and last month's
+        // count (only the recent one has an observed song near it), the old
+        // one doesn't.
+        let report = Self.coverage(recorded: [Self.recorded[1]], recordingDays: 15, moments: Self.moments)
+        #expect(report.observedSinceRecording == ListeningCoverage.MatchCounts(near: 1, none: 1))
+        let later = ListeningCoverage(
+            moments: Self.moments, songs: Self.songs, recordedPlays: [Self.recorded[1]],
+            recordingSince: Self.now.addingTimeInterval(-5 * T.day), libraryReads: 1,
+            now: Self.now.addingTimeInterval(10 * T.day), calendar: Self.calendar
+        )
+        #expect(later.observedSinceRecording == ListeningCoverage.MatchCounts(near: 1))
+        #expect(later.verdict == .pass(nearShare: 1))
     }
 
     // MARK: - Verdict
@@ -118,7 +160,7 @@ struct ListeningCoverageTests {
     }
 
     @Test func noVerdictWithoutRecentMoments() {
-        #expect(Self.coverage(moments: [Self.old]).verdict == .noRecentMoments)
+        #expect(Self.coverage(moments: [Self.old]).verdict == .noMomentsSinceRecording)
     }
 
     @Test func includesLibraryAdditions() {

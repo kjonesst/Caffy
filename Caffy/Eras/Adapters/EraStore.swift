@@ -127,6 +127,8 @@ struct EraStore {
                 // connected at all), and would otherwise stay empty for good.
                 if !lockedEraIDs.contains(eraID) || moment.songs == nil {
                     moment.setMatches(matches)
+                } else {
+                    moment.backfillObserved(from: matches)
                 }
                 saved[photo.id] = moment
             } else {

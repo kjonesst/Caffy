@@ -221,6 +221,44 @@ struct EraStoreTests {
         }
     }
 
+    @Test func momentsSaveWhetherTheirPlaysWereObserved() async throws {
+        let result = try await sync(Self.musicShift)
+        let moment = try #require(try allMoments().first { !($0.songs ?? []).isEmpty })
+        let expected = try #require(result.matches[moment.momentID!])
+        #expect(moment.songObserved == expected.map { $0.hasObservedPlay! })
+        #expect(moment.matches.map(\.hasObservedPlay) == expected.map(\.hasObservedPlay))
+    }
+
+    @Test func frozenMomentsGetTheirEvidenceBackfilledButKeepTheirSongs() async throws {
+        try await sync(Self.musicShift)
+        let frozen = try #require(try eras().first)
+        #expect(frozen.isFrozen)
+        // As if saved before plays were told apart.
+        for moment in frozen.moments {
+            moment.songObserved = nil
+        }
+        try context.save()
+        let songsBefore = frozen.moments.map(\.songs)
+
+        try await sync(Self.musicShift)
+
+        let after = try #require(try eras().first)
+        #expect(after.moments.map(\.songs) == songsBefore)
+        for moment in after.moments where !(moment.songs ?? []).isEmpty {
+            #expect(moment.songObserved?.count == moment.songs?.count)
+        }
+    }
+
+    @Test func erasSaveTheirCorroboratedSongs() async throws {
+        let result = try await sync(Self.musicShift)
+        let saved = try eras()
+        #expect(saved.map(\.corroboratedSongIDs) == result.eras.map { $0.corroboratedSongIDs.sorted() })
+        // Scenario plays are observed, so every near song is corroborated.
+        let near = Set(saved[1].songs.filter { $0.evidence == .nearPlay }.map(\.id))
+        #expect(!near.isEmpty)
+        #expect(near.isSubset(of: Set(saved[1].corroboratedSongIDs ?? [])))
+    }
+
     @Test func frozenMomentsMatchedWithNothingStayThatWay() async throws {
         try await sync(Self.musicShift)
         let frozen = try #require(try eras().first)

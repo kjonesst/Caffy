@@ -9,9 +9,20 @@ nonisolated struct SongMatch: Hashable, Sendable {
     let score: Double
     /// How many of this song's plays counted towards `score`.
     let playCount: Int
+    /// How many of those plays Caffy saw happen (not seeded, see
+    /// `ListeningEvent.isSeeded`).
+    var observedPlayCount: Int
     /// `true` when nothing played near the moment, so this song comes from
     /// elsewhere on the same day.
     let isLoose: Bool
+
+    init(song: Song, score: Double, playCount: Int, observedPlayCount: Int? = nil, isLoose: Bool) {
+        self.song = song
+        self.score = score
+        self.playCount = playCount
+        self.observedPlayCount = observedPlayCount ?? playCount
+        self.isLoose = isLoose
+    }
 }
 
 /// A photo moment with the songs that were playing around it.
@@ -138,6 +149,7 @@ nonisolated enum MusicMatcher {
         var songs: [String: Song] = [:]
         var scores: [String: Double] = [:]
         var counts: [String: Int] = [:]
+        var observed: [String: Int] = [:]
 
         // `weighted` is in time order, so sums and the kept `Song` are the
         // same on every run.
@@ -149,10 +161,15 @@ nonisolated enum MusicMatcher {
             }
             scores[id, default: 0] += weight
             counts[id, default: 0] += 1
+            if !play.isSeeded {
+                observed[id, default: 0] += 1
+            }
         }
 
         return order
-            .map { SongMatch(song: songs[$0]!, score: scores[$0]!, playCount: counts[$0]!, isLoose: isLoose) }
+            .map {
+                SongMatch(song: songs[$0]!, score: scores[$0]!, playCount: counts[$0]!, observedPlayCount: observed[$0] ?? 0, isLoose: isLoose)
+            }
             .sorted { ($1.score, $1.playCount, $0.song.id) < ($0.score, $0.playCount, $1.song.id) }
     }
 }
@@ -165,11 +182,14 @@ private nonisolated struct PlayIndex {
     private let longest: TimeInterval
 
     init(_ events: [ListeningEvent]) {
+        // Observed before seeded on a tie (`false < true` as 0 < 1).
         let sorted = events.sorted {
-            ($0.interval.start, $0.interval.end, $0.song.id) < ($1.interval.start, $1.interval.end, $1.song.id)
+            ($0.interval.start, $0.interval.end, $0.song.id, $0.isSeeded ? 1 : 0)
+                < ($1.interval.start, $1.interval.end, $1.song.id, $1.isSeeded ? 1 : 0)
         }
         // The same song over the same interval twice is one play reported
-        // twice (for example by overlapping snapshots), so keep one.
+        // twice (for example by overlapping snapshots), so keep one: the
+        // observed one, when one of them is seeded.
         var unique: [ListeningEvent] = []
         for event in sorted {
             if let last = unique.last, last.song.id == event.song.id, last.interval == event.interval {

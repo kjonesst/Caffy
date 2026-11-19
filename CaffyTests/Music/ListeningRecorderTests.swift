@@ -32,7 +32,7 @@ struct ListeningRecorderTests {
         let recorder = ListeningRecorder(modelContainer: container, reader: library)
 
         let first = await recorder.record(now: T.hours(1))
-        #expect(first == RecordSummary(songCount: 2, newExactPlays: 1, newEstimatedPlays: 0))
+        #expect(first == RecordSummary(songCount: 2, newExactPlays: 0, newEstimatedPlays: 0, newSeededPlays: 1))
 
         await library.set([.fixture(1, lastPlayed: T.hours(9), count: 7), .fixture(2, lastPlayed: T.hours(4), count: 1)])
         let second = await recorder.record(now: T.hours(10))
@@ -47,6 +47,99 @@ struct ListeningRecorderTests {
             DateInterval(start: T.hours(9), duration: 0)
         ])
         #expect(plays.map(\.isEstimated) == [false, true, false, false])
+        #expect(plays.map(\.isSeeded) == [true, false, false, false])
+    }
+
+    // MARK: - Seeded plays
+
+    @Test func firstPassOnlySeedsAndASecondPassObserves() async throws {
+        let library = FakeMusicLibrary([
+            .fixture(1, lastPlayed: T.hours(0), count: 5),
+            .fixture(2, lastPlayed: T.hours(-30), count: 2),
+            .fixture(3, count: 0)
+        ])
+        let recorder = ListeningRecorder(modelContainer: container, reader: library)
+
+        let first = await recorder.record(now: T.hours(1))
+        #expect(first == RecordSummary(songCount: 3, newExactPlays: 0, newEstimatedPlays: 0, newSeededPlays: 2))
+        #expect(try recordedPlays().allSatisfy(\.isSeeded))
+        let check = try #require(try context.fetch(FetchDescriptor<ListeningCheck>()).first)
+        #expect(check.newSeededPlays == 2)
+        #expect(check.newExactPlays == 0)
+
+        await library.set([
+            .fixture(1, lastPlayed: T.hours(5), count: 6),
+            .fixture(2, lastPlayed: T.hours(-30), count: 2),
+            .fixture(3, count: 0)
+        ])
+        let second = await recorder.record(now: T.hours(6))
+        #expect(second == RecordSummary(songCount: 3, newExactPlays: 1, newEstimatedPlays: 0, newSeededPlays: 0))
+        let observed = try recordedPlays().filter { !$0.isSeeded }
+        #expect(observed.map(\.start) == [T.hours(5)])
+        #expect(observed.allSatisfy { !$0.isEstimated })
+    }
+
+    @Test func migrationMarksOnlyPlaysFromBeforeRecordingOnce() throws {
+        let song = Song(id: "s", title: "s", artist: "a")
+        context.insert(LibrarySongState(key: "1", lastPlayedDate: T.hours(0), playCount: 1, firstSeenAt: T.hours(10)))
+        context.insert(LibrarySongState(key: "2", lastPlayedDate: nil, playCount: 0, firstSeenAt: T.hours(20)))
+        let before = ListeningEvent(song: song, interval: DateInterval(start: T.hours(0), duration: 0))
+        let after = ListeningEvent(song: song, interval: DateInterval(start: T.hours(15), duration: 0))
+        // An estimate that ends after recording began.
+        let straddling = ListeningEvent(song: song, interval: DateInterval(start: T.hours(8), end: T.hours(12)), isEstimated: true)
+        for event in [before, after, straddling] {
+            context.insert(RecordedPlay(event, recordedAt: T.hours(20)))
+        }
+        try context.save()
+
+        #expect(try ListeningHistoryStore.markSeededPlays(in: context) == 1)
+        #expect(try recordedPlays().map(\.isSeeded) == [true, false, false])
+        #expect(try ListeningHistoryStore.markSeededPlays(in: context) == 0)
+        #expect(try recordedPlays().map(\.isSeeded) == [true, false, false])
+    }
+
+    @Test func migrationRunsOnceThenRemembers() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ListeningRecorderTests.\(UUID().uuidString)"))
+        context.insert(LibrarySongState(key: "1", lastPlayedDate: T.hours(0), playCount: 1, firstSeenAt: T.hours(10)))
+        let song = Song(id: "s", title: "s", artist: "a")
+        context.insert(RecordedPlay(ListeningEvent(song: song, interval: DateInterval(start: T.hours(0), duration: 0)), recordedAt: T.hours(10)))
+        try context.save()
+
+        try ListeningHistoryStore.markSeededPlaysOnce(in: context, defaults: defaults)
+        #expect(defaults.bool(forKey: ListeningHistoryStore.markSeededPlaysKey))
+        #expect(try recordedPlays().map(\.isSeeded) == [true])
+
+        // Once remembered, a play saved wrongly afterwards is left alone.
+        context.insert(RecordedPlay(ListeningEvent(song: song, interval: DateInterval(start: T.hours(1), duration: 0)), recordedAt: T.hours(11)))
+        try context.save()
+        try ListeningHistoryStore.markSeededPlaysOnce(in: context, defaults: defaults)
+        #expect(try recordedPlays().map(\.isSeeded) == [true, false])
+    }
+
+    @Test func recorderMarksOldHistoryBeforeItsPass() async throws {
+        let defaults = try #require(UserDefaults(suiteName: "ListeningRecorderTests.\(UUID().uuidString)"))
+        context.insert(LibrarySongState(key: "1", lastPlayedDate: T.hours(0), playCount: 1, firstSeenAt: T.hours(1)))
+        context.insert(ListeningCheck(at: T.hours(1), songCount: 1, newExactPlays: 1, newEstimatedPlays: 0))
+        let old = LibrarySongSnapshot.fixture(1, lastPlayed: T.hours(0), count: 1)
+        context.insert(RecordedPlay(ListeningEvent(song: old.song, interval: DateInterval(start: T.hours(0), duration: 0)), recordedAt: T.hours(1)))
+        try context.save()
+
+        let recorder = ListeningRecorder(modelContainer: container, reader: FakeMusicLibrary([old]), defaults: defaults)
+        await recorder.record(now: T.hours(2))
+        // A fresh context, so the recorder's save is read rather than this
+        // context's copy.
+        let fresh = ModelContext(container)
+        #expect(try fresh.fetch(FetchDescriptor<RecordedPlay>()).map(\.isSeeded) == [true])
+    }
+
+    @Test func aDuplicateKeepsTheObservedPlay() {
+        let song = Song(id: "s", title: "s", artist: "a")
+        let at = DateInterval(start: T.hours(3), duration: 0)
+        let seeded = ListeningEvent(song: song, interval: at, isSeeded: true)
+        let observed = ListeningEvent(song: song, interval: at)
+        #expect(RecordedListeningSource.unique([seeded, observed]) == [observed])
+        #expect(RecordedListeningSource.unique([observed, seeded]) == [observed])
+        #expect(RecordedListeningSource.unique([seeded, seeded]) == [seeded])
     }
 
     @Test func readingAgainWithNothingNewAddsNoPlays() async throws {

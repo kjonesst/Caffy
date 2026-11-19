@@ -20,12 +20,12 @@ nonisolated struct MediaPlayerListeningSource: ListeningSource {
     }
 
     /// One exact play with no length at each song's `lastPlayedDate`, oldest
-    /// first. A moment's match window is much longer than a song, so it
+    /// first. Seeded (`ListeningEvent.isSeeded`): Caffy didn't see them happen. A moment's match window is much longer than a song, so it
     /// doesn't matter whether the date marks the start or the end of a play.
     static func plays(from songs: [LibrarySongSnapshot]) -> [ListeningEvent] {
         songs
             .compactMap { song in
-                song.lastPlayedDate.map { ListeningEvent(song: song.song, interval: DateInterval(start: $0, duration: 0)) }
+                song.lastPlayedDate.map { ListeningEvent(song: song.song, interval: DateInterval(start: $0, duration: 0), isSeeded: true) }
             }
             .sorted { ($0.interval.start, $0.song.id) < ($1.interval.start, $1.song.id) }
     }
