@@ -1,5 +1,6 @@
 import Foundation
 import MediaPlayer
+import MusicKit
 import Photos
 import Testing
 @testable import Caffy
@@ -12,14 +13,19 @@ import Testing
 ///         -only-testing:CaffyTests/LiveAdapterTests -parallel-testing-enabled NO
 ///
 /// Grant photo access to the simulator first with
-/// `xcrun simctl privacy <device> grant photos com.kjonesst.caffytest1`.
+/// `xcrun simctl privacy <device> grant photos com.kjonesst.caffy`.
 /// Each test writes what it found to `tmp/live-adapters.txt` in the app's
-/// container, for a person to look over.
+/// container, for a person to look over, and prints each line with a
+/// `[live]` prefix so it also shows in Xcode's test log on a device.
+///
+/// In Xcode, set `CAFFY_LIVE_ADAPTERS=1` under Edit Scheme → Test →
+/// Arguments → Environment Variables instead of the `TEST_RUNNER_` form.
 @Suite(.enabled(if: ProcessInfo.processInfo.environment["CAFFY_LIVE_ADAPTERS"] == "1"))
 struct LiveAdapterTests {
     private static let report = FileManager.default.temporaryDirectory.appending(path: "live-adapters.txt")
 
     private static func note(_ line: String) {
+        print("[live] \(line)")
         let existing = (try? String(contentsOf: report, encoding: .utf8)) ?? ""
         try? (existing + line + "\n").write(to: report, atomically: true, encoding: .utf8)
     }
@@ -101,6 +107,47 @@ struct LiveAdapterTests {
             if name != nil { named += 1 }
         }
         #expect(named > 0)
+    }
+
+    /// Answers: does granting MusicKit access also authorize MediaPlayer?
+    /// Caffy only ever asks MusicKit, then reads the library through
+    /// `MPMediaQuery`, so this decides whether the recorder can read anything.
+    ///
+    /// Run on an iPhone right after deleting Caffy, so both start as not
+    /// determined, and tap Allow when the prompt appears. `MPMediaLibrary`
+    /// raw values: 0 not determined, 1 denied, 2 restricted, 3 authorized.
+    @Test func musicKitAuthorizationCoversMediaLibrary() async {
+        #if targetEnvironment(simulator)
+        Self.note("MusicKit vs MediaPlayer: skipped in the simulator")
+        #else
+        Self.note("Before: MusicKit \(MusicAuthorization.currentStatus), MPMediaLibrary \(MPMediaLibrary.authorizationStatus().rawValue)")
+        if MusicAuthorization.currentStatus == .notDetermined {
+            let status = await MusicAuthorization.request()
+            Self.note("MusicAuthorization.request() returned \(status)")
+        } else {
+            Self.note("MusicKit was already decided, so this run can't show the change. Delete Caffy and run again.")
+        }
+        Self.note("After: MusicKit \(MusicAuthorization.currentStatus), MPMediaLibrary \(MPMediaLibrary.authorizationStatus().rawValue)")
+        #endif
+    }
+
+    /// What `MusicSubscription.current` returns now that the App ID has the
+    /// MusicKit service. Before the paid team it always threw.
+    @Test func musicSubscriptionState() async {
+        #if targetEnvironment(simulator)
+        Self.note("MusicSubscription: skipped in the simulator")
+        #else
+        Self.note("MusicKit authorization: \(MusicAuthorization.currentStatus)")
+        do {
+            let subscription = try await MusicSubscription.current
+            Self.note("MusicSubscription: canPlayCatalogContent \(subscription.canPlayCatalogContent), "
+                + "canBecomeSubscriber \(subscription.canBecomeSubscriber), "
+                + "hasCloudLibraryEnabled \(subscription.hasCloudLibraryEnabled)")
+        } catch {
+            Self.note("MusicSubscription.current threw: \(error)")
+            Issue.record("MusicSubscription.current threw: \(error)")
+        }
+        #endif
     }
 
     /// The real music library through MediaPlayer. Run on an iPhone with
