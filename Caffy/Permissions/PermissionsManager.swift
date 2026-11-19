@@ -15,9 +15,8 @@ enum MusicAccess: Equatable {
 /// Whether Caffy can put catalog songs into the user's library, which its
 /// playlists need.
 enum MusicLibraryAccess: Equatable {
-    /// Not checked yet, or the check failed. Without the paid Developer
-    /// Program (no MusicKit developer token), it always fails, so this stays
-    /// quiet rather than showing an error.
+    /// Not checked yet, or the check failed (for example, offline). Stays
+    /// quiet rather than showing an error, since access itself was granted.
     case unknown
     case canAddToLibrary
     /// No Apple Music subscription. `canSubscribe` is false when, for

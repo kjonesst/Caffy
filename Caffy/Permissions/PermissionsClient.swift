@@ -1,11 +1,5 @@
-import MediaPlayer // TEMP(musickit-check): remove after Task 1
 import MusicKit
-import OSLog // TEMP(musickit-check): remove after Task 1
 import Photos
-
-// TEMP(musickit-check): remove after Task 1. Filter Console.app by this
-// category to see what MusicKit returns on a device.
-private let musicKitCheck = Logger(subsystem: "com.kjonesst.caffy", category: "musickit-check")
 
 /// The system calls behind `PermissionsManager`.
 ///
@@ -27,27 +21,14 @@ struct LivePermissionsClient: PermissionsClient {
     }
 
     func requestMusic() async -> MusicAccess {
-        // TEMP(musickit-check): remove after Task 1
-        musicKitCheck.notice("before request: MusicKit \(String(describing: MusicAuthorization.currentStatus), privacy: .public), MPMediaLibrary \(MPMediaLibrary.authorizationStatus().rawValue, privacy: .public)")
-        let status = await MusicAuthorization.request()
-        // TEMP(musickit-check): remove after Task 1
-        musicKitCheck.notice("after request: MusicKit \(String(describing: status), privacy: .public), MPMediaLibrary \(MPMediaLibrary.authorizationStatus().rawValue, privacy: .public)")
-        return MusicAccess(status)
+        MusicAccess(await MusicAuthorization.request())
     }
 
     func libraryAccess() async -> MusicLibraryAccess {
-        // Needs a MusicKit developer token, so it throws unless the App ID has
-        // the MusicKit service (paid Developer Program).
-        let subscription: MusicSubscription
-        do {
-            subscription = try await MusicSubscription.current
-        } catch {
-            // TEMP(musickit-check): remove after Task 1
-            musicKitCheck.error("MusicSubscription.current threw: \(String(describing: error), privacy: .public)")
-            return .unknown
-        }
-        // TEMP(musickit-check): remove after Task 1
-        musicKitCheck.notice("subscription: canPlayCatalogContent \(subscription.canPlayCatalogContent, privacy: .public), canBecomeSubscriber \(subscription.canBecomeSubscriber, privacy: .public), hasCloudLibraryEnabled \(subscription.hasCloudLibraryEnabled, privacy: .public)")
+        // Needs the MusicKit developer token, which the App ID's MusicKit
+        // service provides. With it, this only fails when the check itself
+        // can't run, such as offline (see docs/notes/musickit-findings.md).
+        guard let subscription = try? await MusicSubscription.current else { return .unknown }
         guard subscription.canPlayCatalogContent else {
             return .needsSubscription(canSubscribe: subscription.canBecomeSubscriber)
         }
