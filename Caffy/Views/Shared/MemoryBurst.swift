@@ -87,6 +87,27 @@ enum BurstArtwork {
         let seeds = ["Night Drive", "Harbour", "Rooftop", "Road Trip", "Late Train", "Summer"]
         return seeds.prefix(count).map { .placeholder(seed: $0) }
     }
+
+    /// Up to `count` different song covers from the user's eras, newest era
+    /// first, in playlist order. Empty before any era has art (on a first
+    /// run, onboarding comes before the first sync).
+    @MainActor
+    static func recentCovers(in erasNewestFirst: [Era], count: Int) -> [URL] {
+        var covers: [URL] = []
+        var seen = Set<URL>()
+        for era in erasNewestFirst {
+            for url in era.songs.compactMap(\.song.artworkURL) where seen.insert(url).inserted {
+                covers.append(url)
+                if covers.count == count { return covers }
+            }
+        }
+        return covers
+    }
+
+    /// `fallback`, with its first items replaced by `covers`.
+    static func filling(_ fallback: [BurstArtwork], with covers: [URL]) -> [BurstArtwork] {
+        Array((covers.map(BurstArtwork.url) + fallback.dropFirst(covers.count)).prefix(max(fallback.count, covers.count)))
+    }
 }
 
 /// Draws one `BurstArtwork`, filling its frame.

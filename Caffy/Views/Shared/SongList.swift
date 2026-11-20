@@ -12,26 +12,31 @@ struct SongSection: Identifiable {
 /// The cream panel of an era's songs, optionally in labelled groups.
 struct SongList: View {
     let sections: [SongSection]
-    /// Puts a plain listen button above the songs. Home leaves this off, because
-    /// its cards have `ListenPill` instead.
-    var showsListenButton = false
+    /// The era's published playlist. When set, a plain listen button above
+    /// the songs opens it in Apple Music. Home leaves this off, because its
+    /// cards have `ListenPill` instead; unpublished eras have no link.
+    var listenURL: URL? = nil
     /// Shows only this many songs, followed by a "See all" row. `nil` shows
     /// every song.
     var limit: Int? = nil
     /// Called by the "See all" row.
     var showAll: () -> Void = {}
 
-    init(songs: [Song], showsListenButton: Bool = false, limit: Int? = nil, showAll: @escaping () -> Void = {}) {
-        self.init(sections: [SongSection(title: nil, songs: songs)], showsListenButton: showsListenButton, limit: limit, showAll: showAll)
+    @Environment(\.openURL) private var openURL
+
+    init(songs: [Song], listenURL: URL? = nil, limit: Int? = nil, showAll: @escaping () -> Void = {}) {
+        self.init(sections: [SongSection(title: nil, songs: songs)], listenURL: listenURL, limit: limit, showAll: showAll)
     }
 
     /// Empty sections are left out.
-    init(sections: [SongSection], showsListenButton: Bool = false, limit: Int? = nil, showAll: @escaping () -> Void = {}) {
+    init(sections: [SongSection], listenURL: URL? = nil, limit: Int? = nil, showAll: @escaping () -> Void = {}) {
         self.sections = sections.filter { !$0.songs.isEmpty }
-        self.showsListenButton = showsListenButton
+        self.listenURL = listenURL
         self.limit = limit
         self.showAll = showAll
     }
+
+    private var showsListenButton: Bool { listenURL != nil }
 
     private var songCount: Int {
         sections.reduce(0) { $0 + $1.songs.count }
@@ -51,9 +56,10 @@ struct SongList: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if showsListenButton {
-                // Publishing to Apple Music comes later, so this does nothing yet.
-                Button {} label: {
+            if let listenURL {
+                Button {
+                    openURL(listenURL)
+                } label: {
                     Text("Listen in Apple Music")
                         .font(Theme.display(16))
                         .foregroundStyle(Theme.cream)
@@ -61,6 +67,7 @@ struct SongList: View {
                         .background(Theme.ink)
                 }
                 .buttonStyle(.plain)
+                .accessibilityHint("Opens this era's playlist in Apple Music")
                 .padding(.bottom, 4)
             }
 
@@ -105,12 +112,26 @@ struct SongList: View {
 }
 
 /// The big listen button on an era's card, printed in the era's colours.
+///
+/// Opens the era's published playlist in Apple Music. Draws nothing until
+/// the era has one: a button that can't do anything yet would only confuse.
 struct ListenPill: View {
     let palette: EraPalette
+    /// The published playlist's link (`CaffyPlaylist.appleMusicURL`).
+    let url: URL?
+
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
-        // Publishing to Apple Music comes later, so this does nothing yet.
-        Button {} label: {
+        if let url {
+            button(opening: url)
+        }
+    }
+
+    private func button(opening url: URL) -> some View {
+        Button {
+            openURL(url)
+        } label: {
             HStack(spacing: 14) {
                 Image(systemName: "play.fill")
                     .font(.system(size: 18))
@@ -141,6 +162,7 @@ struct ListenPill: View {
             .contentShape(.capsule)
         }
         .buttonStyle(.plain)
+        .accessibilityHint("Opens this era's playlist in Apple Music")
     }
 }
 
@@ -180,8 +202,8 @@ struct SongRow: View {
 
 #Preview {
     VStack {
-        ListenPill(palette: .rust)
-        SongList(songs: SampleData.previewSongs, showsListenButton: true)
+        ListenPill(palette: .rust, url: URL(string: "https://music.apple.com"))
+        SongList(songs: SampleData.previewSongs, listenURL: URL(string: "https://music.apple.com"))
         SongList(sections: [
             SongSection(title: "Playing at these moments", songs: Array(SampleData.previewSongs.prefix(2))),
             SongSection(title: "Added to your library around this time", songs: Array(SampleData.previewSongs.suffix(2)))

@@ -20,19 +20,23 @@ nonisolated enum MusicKitCatalog {
     static let defaultBatchSize = 100
 
     /// The catalog songs for `ids`, by id. Repeated ids are fetched once, in
-    /// batches of `batchSize`. Ids the catalog doesn't return are left out.
+    /// batches of `batchSize`. Ids the catalog doesn't return, or whose
+    /// response can't be decoded, are left out.
     static func songs(_ ids: [String], batchSize: Int) async throws -> [String: MusicKit.Song] {
-        let unique = uniqued(ids)
-        let size = max(batchSize, 1)
-        var found: [String: MusicKit.Song] = [:]
-        for start in stride(from: 0, to: unique.count, by: size) {
-            let batch = unique[start..<min(start + size, unique.count)]
+        try await fetch(ids, batchSize: batchSize).items
+    }
+
+    /// Like `songs`, with a report of requests that failed to decode (see
+    /// `CatalogBatcher`).
+    static func fetch(_ ids: [String], batchSize: Int) async throws -> CatalogBatcher.Fetch<MusicKit.Song> {
+        try await CatalogBatcher.fetch(ids, batchSize: batchSize) { batch in
             let request = MusicCatalogResourceRequest<MusicKit.Song>(matching: \.id, memberOf: batch.map { MusicItemID($0) })
+            var found: [String: MusicKit.Song] = [:]
             for song in try await request.response().items {
                 found[song.id.rawValue] = song
             }
+            return found
         }
-        return found
     }
 
     /// The plain value Caffy keeps from a catalog song.

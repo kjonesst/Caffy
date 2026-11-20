@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 /// Holds the onboarding steps: the top bar (Back, progress, Skip), the current
@@ -136,16 +137,19 @@ private struct ProgressSegments: View {
 // MARK: - Previews
 
 /// Sets up onboarding previews, which don't run `CaffyApp`: loads Caffy's
-/// fonts and provides a fake `PermissionsManager` that hasn't asked yet. A
-/// preview can provide its own manager to show a different outcome.
+/// fonts, provides a fake `PermissionsManager` that hasn't asked yet, and an
+/// empty database (the steps that show covers query eras, as on a first
+/// run). A preview can provide its own manager to show a different outcome.
 struct OnboardingPreview: PreviewModifier {
-    static func makeSharedContext() async throws {
+    static func makeSharedContext() async throws -> ModelContainer {
         Theme.registerFonts()
+        return try CaffyStore.makeContainer(inMemory: true)
     }
 
-    func body(content: Content, context: Void) -> some View {
+    func body(content: Content, context: ModelContainer) -> some View {
         content
             .environment(PermissionsManager(client: PreviewPermissionsClient.notAsked))
+            .modelContainer(context)
     }
 }
 

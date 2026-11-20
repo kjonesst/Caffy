@@ -47,7 +47,7 @@ struct EraSheet: View {
                 Text(era.summary)
                     .font(Theme.display(17))
 
-                SongList(sections: SongSection.groups(of: era.songs), showsListenButton: true)
+                SongList(sections: SongSection.groups(of: era.songs), listenURL: era.playlist?.appleMusicURL)
             }
             .padding(.horizontal, 16)
             .padding(.top, 20)

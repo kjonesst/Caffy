@@ -99,6 +99,9 @@ struct MusicKitSpikeView: View {
                 Text(message(for: step))
             }
         }
+        // The app tints with `Theme.ink`, which is unreadable on the system
+        // list background in dark mode. A debug screen just needs to be legible.
+        .tint(.blue)
     }
 
     // MARK: - Sections
@@ -111,6 +114,13 @@ struct MusicKitSpikeView: View {
                 LabeledContent("Era ID", value: era.eraID ?? "–")
                 LabeledContent("Songs in era playlist", value: "\(era.songs.count)")
                 LabeledContent("Apple Music playlist", value: link?.playlistID ?? "Not published")
+                if let link {
+                    LabeledContent("Published songs", value: "\(link.songIDs.count)")
+                    LabeledContent("Playlist link") {
+                        Text(link.url?.absoluteString ?? "None from MusicKit")
+                            .textSelection(.enabled)
+                    }
+                }
             } else {
                 Text("There's no current era called “\(Self.eraTitle)”, so nothing can be written.")
             }
@@ -159,7 +169,19 @@ struct MusicKitSpikeView: View {
         defer { isWorking = false }
         note("preview: era \(era.eraID ?? "–"), \(era.songs.count) songs in its playlist")
         do {
-            let found = try await PlaylistSongMatcher.match(era.songs, lookup: LiveCatalogSongLookup())
+            // Fetched here rather than through `LiveCatalogSongLookup`, to
+            // log how the catalog requests went.
+            let ids = era.songs.compactMap { PlaylistSongMatcher.catalogID(of: $0.song) }
+            let fetch = try await MusicKitCatalog.fetch(ids, batchSize: MusicKitCatalog.defaultBatchSize)
+            note("catalog: asked for \(MusicKitCatalog.uniqued(ids).count) ids in batches of \(MusicKitCatalog.defaultBatchSize), "
+                + "\(fetch.requests) requests, got \(fetch.items.count) songs")
+            if !fetch.failedRequestSizes.isEmpty {
+                note("catalog: requests that failed to decode, by size: \(CatalogBatcher.summarise(fetch.failedRequestSizes))")
+                note("catalog: ids that failed alone: \(fetch.undecodableIDs.isEmpty ? "none" : fetch.undecodableIDs.joined(separator: ", "))")
+                note("catalog: first error: \(fetch.firstError ?? "–")")
+            }
+            let lookup = FetchedCatalogLookup(songs: fetch.items.mapValues(MusicKitCatalog.catalogSong))
+            let found = try await PlaylistSongMatcher.match(era.songs, lookup: lookup)
             match = found
             let noID = found.unmatched.count { $0.reason == .noCatalogID }
             note("preview: \(found.matched.count) matched, \(found.unmatched.count) left out "
@@ -265,6 +287,15 @@ struct MusicKitSpikeView: View {
 
     private var reportText: String {
         var text = ["Caffy MusicKit spike, \(Date.now.formatted())"]
+        if let era {
+            text.append("Era: \(era.eraID ?? "–"), \(era.songs.count) songs in its playlist")
+        }
+        if let link {
+            text.append("Published: playlist \(link.playlistID), \(link.songIDs.count) songs, "
+                + "published \(link.publishedAt.formatted()), link \(link.url?.absoluteString ?? "none from MusicKit")")
+        } else {
+            text.append("Published: no playlist linked to this era")
+        }
         if let match {
             text.append("")
             text.append("Will publish \(match.matched.count) songs:")
@@ -313,6 +344,15 @@ struct MusicKitSpikeView: View {
         case .missing(let link): "missing: no playlist with id \(link.playlistID)"
         case .nothingToPublish: "nothing to publish"
         }
+    }
+}
+
+/// Catalog songs already fetched, served to `PlaylistSongMatcher`.
+private struct FetchedCatalogLookup: CatalogSongLookup {
+    let songs: [String: CatalogSong]
+
+    func songs(catalogIDs: [String]) async throws -> [String: CatalogSong] {
+        songs.filter { catalogIDs.contains($0.key) }
     }
 }
 #endif

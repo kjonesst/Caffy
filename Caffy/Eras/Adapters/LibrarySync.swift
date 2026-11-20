@@ -39,6 +39,9 @@ final class LibrarySync {
     /// each save (see `PlaylistLedger`). Needs a container with the listening
     /// history store, so only the app's own sync turns it on.
     private let relinksPlaylists: Bool
+    /// Where cover art comes from (see `ArtworkFiller`). `nil` leaves songs
+    /// without art. Needs a container with the listening history store.
+    private let artworkLookup: (any CatalogSongLookup)?
 
     private var isRunning = false
     private var runAgain = false
@@ -55,9 +58,11 @@ final class LibrarySync {
         calendar: Calendar = .current,
         now: @escaping () -> Date = { .now },
         defaults: UserDefaults = .standard,
-        relinksPlaylists: Bool = false
+        relinksPlaylists: Bool = false,
+        artworkLookup: (any CatalogSongLookup)? = nil
     ) {
         self.relinksPlaylists = relinksPlaylists
+        self.artworkLookup = artworkLookup
         self.context = context
         self.reader = reader
         self.listening = listening
@@ -69,8 +74,9 @@ final class LibrarySync {
     }
 
     /// The app's sync: the real photo library, Apple's place names, photo
-    /// colours from thumbnails, and the listening history Caffy records from
-    /// the music library (none without Apple Music access).
+    /// colours from thumbnails, the listening history Caffy records from
+    /// the music library (none without Apple Music access), and cover art
+    /// from the Apple Music catalog.
     static func live(context: ModelContext) -> LibrarySync {
         LibrarySync(
             context: context,
@@ -78,8 +84,13 @@ final class LibrarySync {
             listening: RecordedListeningSource(container: context.container),
             recorder: ListeningRecorder(modelContainer: context.container, reader: MediaPlayerLibraryReader()),
             pipeline: EraPipeline(namer: MapKitPlaceLookup.cachedNamer(), sampler: PhotoKitColorSampler()),
-            relinksPlaylists: true
+            relinksPlaylists: true,
+            artworkLookup: LiveCatalogSongLookup()
         )
+    }
+
+    private var artwork: ArtworkFiller? {
+        artworkLookup.map { ArtworkFiller(context: context, resolver: ArtworkResolver(lookup: $0)) }
     }
 
     /// Syncs now, or, if a sync is running, makes it go round once more.
@@ -126,17 +137,33 @@ final class LibrarySync {
             let store = EraStore(context: context)
             try store.resetEmptyFrozenMomentSongsOnce(defaults: defaults)
             let frozen = try store.frozenEras()
-            let result = await pipeline.run(
+            var result = await pipeline.run(
                 moments: moments, plays: plays, library: library, frozen: frozen, now: now, calendar: calendar
             )
+            if let artwork {
+                result = ArtworkResolver.apply(try artwork.cachedURLs(), to: result)
+            }
             try store.save(result, moments: moments, now: now)
             if relinksPlaylists {
                 try PlaylistLedger(context: context).relinkPlaylists()
             }
+            await fillArtwork(now: now)
             return .synced(eras: result.eras.count, moments: moments.count)
         } catch {
             context.rollback()
             return .failed(error.localizedDescription)
+        }
+    }
+
+    /// Looks up missing cover art once the eras are saved. Art is only
+    /// decoration, so a failure (offline, no Apple Music access) leaves the
+    /// songs as they were and doesn't fail the sync; the next sync tries again.
+    private func fillArtwork(now: Date) async {
+        guard let artwork else { return }
+        do {
+            try await artwork.fill(now: now)
+        } catch {
+            context.rollback()
         }
     }
 

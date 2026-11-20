@@ -29,10 +29,14 @@ Open. Answered by the spike's rename test.
 Open: does it replace, append or dedupe, and are order and duplicates kept? Answered by the spike's edit test.
 
 ### Does a created playlist have a `url`, and does it open in Apple Music?
-Open.
+**It has one** (20 Nov 2026). Whether it opens in Apple Music gets checked in Task 3.
+
+- `createPlaylist` returned a `Playlist` whose `url` is a share link of the form `https://music.apple.com/<storefront>/playlist/<name-slug>/pl.u-<id>`. The storefront is the account's ("in" here), and the slug comes from the playlist name.
+- The link's `pl.u-…` id is **not** the library id Caffy stores (`p.…`). Library requests take the `p.…` id. The link is only for opening the playlist.
+- Caffy saves the link with the playlist (`CaffyPlaylist.appleMusicURL` and the durable record). The slug follows the name, so after a rename the saved link may be stale. The rename test would show whether `url` changes.
 
 ### How many IDs can one `MusicCatalogResourceRequest` take?
-Open. Caffy batches 100 at a time until this is checked.
+**At least 100** (20 Nov 2026). A spike preview fetched all 244 catalog IDs for the current era in 3 requests (100, 100, 44), and every song came back with no decoding failures. Caffy keeps batches of 100. Larger batches haven't been tried, and there's no need to.
 
 ## Decisions
 
@@ -53,6 +57,8 @@ The proposal, for songs whose id is `library-<persistentID>`:
    - the duration is within ±3 s. This needs `duration` added to `Song`, taken from `LibrarySongSnapshot.duration`.
 4. **Otherwise** skip the song and list it in the report. Never pick the "closest" match.
 
+In the current era, only 1 of 245 songs had no catalog ID: a DJ set that exists only as a library file, so a catalog search wouldn't find it either.
+
 **My recommendation: don't build it yet.** Only 7 of 1,518 songs have no catalog ID (see Other device observations). A wrong match puts a song you never lived with into an "evidence" playlist, which costs more than leaving out a few imported files.
 
 **Decision:** pending.
@@ -71,6 +77,17 @@ How much it matters: on 19 Nov 2026, 7 of 1,518 library songs (0.5%) had no cata
   - With `seededPlaysNeedCorroboration` on, 176 would be dropped.
   - The listen-through after the Task 2 publish is what decides the flag.
 
+- **First publish (20 Nov 2026):** the current era's playlist was published from the spike with 244 songs: 219 near plays, all seeded only, then 25 library additions.
+  - Ken's first look: it "seemed to look fine". `seededPlaysNeedCorroboration` stays off unless a proper listen-through says otherwise.
+- **The same song can appear twice under different catalog IDs:** 3 songs appear twice in the published list, with the same title and artist but different catalog IDs. Each looks like the same recording released on more than one album, such as a DJ-mix album and the original release.
+  - `EraPlaylist` removes repeats by song ID, so it keeps both copies.
+  - Removing repeats by normalised title + artist as well is a possible follow-up, not decided.
+
 ## Surprises
 
-None yet.
+### Catalog lookup of 100 song IDs failed to decode (19 Nov 2026)
+`MusicCatalogResourceRequest<Song>(matching: \.id, memberOf:)` for the current era's songs failed twice in a row, in batches of 100, with `DecodingError.dataCorrupted`, "The given data was not valid JSON … Unexpected end of file". The response body was empty or cut off.
+
+**It didn't happen again.** On 20 Nov 2026, the same 244 IDs in the same batches of 100 all decoded on the first try. So the cause wasn't the batch size, and wasn't a particular ID. Most likely it was a temporary problem on Apple's side or the network's.
+
+`CatalogBatcher` stays in as a safety net. It splits any batch that fails to decode and retries it, down to single IDs. A repeat of this failure then costs a few extra requests instead of the whole lookup, and the spike's preview logs which sizes and IDs failed. Any other error, such as being offline, is still thrown without splitting.
