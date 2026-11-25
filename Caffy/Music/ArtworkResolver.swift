@@ -5,6 +5,15 @@ nonisolated struct ArtworkCacheEntry: Equatable, Sendable {
     /// `nil` when the catalog had no art for the song, or didn't return it.
     var url: URL?
     var fetchedAt: Date
+    /// Whether the catalog returned the song. `nil` when not recorded
+    /// (entries cached before this was kept).
+    var isInCatalog: Bool? = nil
+
+    /// Whether the song is in the catalog, as far as the cache knows: art
+    /// means it was found; otherwise only `isInCatalog` can say.
+    var inCatalog: Bool? {
+        isInCatalog ?? (url != nil ? true : nil)
+    }
 }
 
 /// Works out which covers to look up, looks them up, and puts them on songs.
@@ -36,7 +45,7 @@ nonisolated struct ArtworkResolver: Sendable {
         guard !ids.isEmpty else { return [:] }
         let found = try await lookup.songs(catalogIDs: ids)
         return Dictionary(uniqueKeysWithValues: ids.map { id in
-            (id, ArtworkCacheEntry(url: found[id]?.artworkURL, fetchedAt: now))
+            (id, ArtworkCacheEntry(url: found[id]?.artworkURL, fetchedAt: now, isInCatalog: found[id] != nil))
         })
     }
 

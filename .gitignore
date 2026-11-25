@@ -11,3 +11,6 @@ build/
 # Swift Package Manager
 .swiftpm/
 Packages/
+
+# Claude Code (personal settings)
+.claude/settings.local.json

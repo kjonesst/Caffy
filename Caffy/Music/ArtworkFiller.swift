@@ -66,7 +66,9 @@ struct ArtworkFiller {
 
     // MARK: - Cache
 
-    private func cache() throws -> [String: ArtworkCacheEntry] {
+    /// Everything cached, by catalog id. `EraPublisher` reads it too, to
+    /// know which songs the catalog has without asking again.
+    func cache() throws -> [String: ArtworkCacheEntry] {
         let records = try context.fetch(FetchDescriptor<CatalogArtwork>())
         return Dictionary(records.map { ($0.catalogID, $0.entry) }, uniquingKeysWith: { first, _ in first })
     }
@@ -76,10 +78,9 @@ struct ArtworkFiller {
         let byID = Dictionary(existing.map { ($0.catalogID, $0) }, uniquingKeysWith: { first, _ in first })
         for (id, entry) in entries {
             if let record = byID[id] {
-                record.assign(entry.url, to: \.url)
-                record.assign(entry.fetchedAt, to: \.fetchedAt)
+                record.update(from: entry)
             } else {
-                context.insert(CatalogArtwork(catalogID: id, url: entry.url, fetchedAt: entry.fetchedAt))
+                context.insert(CatalogArtwork(catalogID: id, entry: entry))
             }
         }
         try context.save()

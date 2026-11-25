@@ -38,7 +38,19 @@ Open: does it replace, append or dedupe, and are order and duplicates kept? Answ
 ### How many IDs can one `MusicCatalogResourceRequest` take?
 **At least 100** (20 Nov 2026). A spike preview fetched all 244 catalog IDs for the current era in 3 requests (100, 100, 44), and every song came back with no decoding failures. Caffy keeps batches of 100. Larger batches haven't been tried, and there's no need to.
 
+### Can an app set a playlist's cover image?
+**No** (checked 21 Nov 2026 in the iOS 27.2 SDK):
+
+- MusicKit's `MusicLibrary.createPlaylist` and `edit` take only a name, description, author display name and items.
+- `Playlist.artwork` is read-only.
+- MediaPlayer's `MPMediaPlaylistCreationMetadata` has only a name, author and description.
+
+So Apple Music builds the cover from album art. Caffy shows a one-time guide after an era's first publish: the era's highlight photo, plus steps to set it as the cover in Apple Music. The guide's wording (••• → Edit → tap the cover → Choose Photo) still needs checking on a device.
+
 ## Decisions
+
+### Publishing happens on tap
+Decided 20 Nov 2026. Every era with songs shows "Listen in Apple Music". The first tap creates its playlist, and later taps bring it up to date and open it. A tap first checks the playlist is still in the on-device library, and makes it again if it was deleted. Nothing is published without a tap. Playlists keep the era's title, even where titles repeat, until era titles are made unique.
 
 ### Fallback for songs without a catalog ID
 **Proposed, not decided.** For now, `PlaylistSongMatcher` leaves these songs out, giving the reason `noCatalogID`, and the spike's preview lists them.

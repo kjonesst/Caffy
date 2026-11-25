@@ -15,14 +15,25 @@ final class CatalogArtwork {
     @Attribute(.unique) var catalogID: String
     var url: URL?
     var fetchedAt: Date
+    /// Whether the catalog returned the song at all, so publishing knows
+    /// which songs can go into a playlist without asking again. `nil` for
+    /// entries saved before this was recorded (see `ArtworkCacheEntry.inCatalog`).
+    var isInCatalog: Bool?
 
-    init(catalogID: String, url: URL?, fetchedAt: Date) {
+    init(catalogID: String, entry: ArtworkCacheEntry) {
         self.catalogID = catalogID
-        self.url = url
-        self.fetchedAt = fetchedAt
+        url = entry.url
+        fetchedAt = entry.fetchedAt
+        isInCatalog = entry.isInCatalog
     }
 
     var entry: ArtworkCacheEntry {
-        ArtworkCacheEntry(url: url, fetchedAt: fetchedAt)
+        ArtworkCacheEntry(url: url, fetchedAt: fetchedAt, isInCatalog: isInCatalog)
+    }
+
+    func update(from entry: ArtworkCacheEntry) {
+        assign(entry.url, to: \.url)
+        assign(entry.fetchedAt, to: \.fetchedAt)
+        assign(entry.isInCatalog, to: \.isInCatalog)
     }
 }

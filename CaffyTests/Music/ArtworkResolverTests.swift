@@ -43,9 +43,16 @@ struct ArtworkResolverTests {
 
         let entries = try await ArtworkResolver(lookup: lookup).fetch(["1", "9"], now: Self.now)
 
-        #expect(entries["1"] == ArtworkCacheEntry(url: URL(string: "https://art.example/1.jpg"), fetchedAt: Self.now))
-        #expect(entries["9"] == ArtworkCacheEntry(url: nil, fetchedAt: Self.now))
+        #expect(entries["1"] == ArtworkCacheEntry(url: URL(string: "https://art.example/1.jpg"), fetchedAt: Self.now, isInCatalog: true))
+        #expect(entries["9"] == ArtworkCacheEntry(url: nil, fetchedAt: Self.now, isInCatalog: false))
         #expect(await lookup.lookups == [["1", "9"]])
+    }
+
+    @Test func entriesSavedBeforePresenceWasKeptCountArtAsFound() {
+        #expect(ArtworkCacheEntry(url: Self.art, fetchedAt: Self.now).inCatalog == true)
+        #expect(ArtworkCacheEntry(url: nil, fetchedAt: Self.now).inCatalog == nil)
+        #expect(ArtworkCacheEntry(url: nil, fetchedAt: Self.now, isInCatalog: true).inCatalog == true)
+        #expect(ArtworkCacheEntry(url: nil, fetchedAt: Self.now, isInCatalog: false).inCatalog == false)
     }
 
     @Test func nothingToFetchMakesNoLookup() async throws {

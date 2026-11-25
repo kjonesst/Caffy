@@ -29,7 +29,8 @@ Caffy is an iOS companion app for Apple Music. It automatically connects your ph
 - Replaces an earlier React Native/Expo version that used the Spotify Web API.
 - External services sit behind protocols so the app can run on fake data:
   - `ListeningSource`: Caffy's own recorded history (`RecordedListeningSource`), built from MediaPlayer library reads; sample plays for previews and tests
-  - `PlaylistPublishing`: fake logger now, `MusicLibrary` later
+  - `PlaylistPublishing`: `LivePlaylistPublisher` writes with MusicKit's `MusicLibrary`; tests use a fake. `EraPublisher` drives it when a listen button is tapped.
+  - `CatalogSongLookup`: catalog songs and cover art through MusicKit, cached in `CatalogArtwork`
 - Era songs come from three sources, and each song keeps an evidence label (`SongEvidence`) saying which:
   - **Recorded plays** near a moment (`nearPlay`): the strongest evidence, and the only kind shown as "playing at" a moment.
   - **Last-played dates** on the same day as a moment (`loosePlay`): left out of era playlists by default (`includeLoosePlaysInEraPlaylist`), because matching single last-played dates put most of the library in the newest era.
@@ -70,7 +71,9 @@ DEBUG builds have a few shortcuts for working on onboarding: the profile button'
 - **Recording needs the app open:** plays are only recorded when Caffy opens, until background recording (`BGAppRefreshTask`) exists. The longer between opens, the vaguer the estimates.
 - **History is per-device:** the listening history store is local and never synced (iCloud Music Library already syncs play counts, so two devices would count each play twice).
 - **Library ids change:** a song's `persistentID` can change after a library reset or an iCloud Music Library resync. Catalog songs keep their id; for others, the next read starts a fresh baseline.
-- **Playlists:** `MusicLibrary.shared.edit` replaces the full track list, and Caffy only edits playlists it created.
+- **Playlists:** `MusicLibrary.shared.edit` replaces the full track list, and Caffy only edits playlists it created. Playlists are published only when the user taps "Listen in Apple Music" on an era; each tap creates the playlist, or brings it up to date, and opens it. Eras with no songs have no button.
+- **Playlist covers:** no Apple API lets an app set a playlist's cover image (MusicKit's `createPlaylist` and `edit` take a name, description and songs only), so Apple Music uses album art. After an era's first publish, Caffy shows the era's highlight photo and how to set it as the cover in Apple Music.
+- **Playlist names:** a playlist is named after its era, and era titles can repeat (several "Spring at home"), so playlist names can too until era titles are made unique.
 - **Nothing from before the library's real additions:** library additions only reach back as far as songs were actually added. In Ken's library that's 2023, so the Kerala and Thiruvananthapuram eras stay empty until per-play history is imported.
 - **Short trips may have few or no songs:** people rarely add or play much music while travelling, and that's accurate, so trips aren't padded with songs from around them.
 - **Library additions are a proxy:** adding a song isn't the same as listening to it, and people who stream without adding songs to their library get little from it. `dateAdded` can also be reset by a library resync, which piles the whole library onto one day (the coverage report warns when one day holds 30% or more).

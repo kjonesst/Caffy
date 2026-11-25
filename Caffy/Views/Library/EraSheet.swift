@@ -5,8 +5,12 @@ struct EraSheet: View {
     let era: Era
 
     @Environment(\.dismiss) private var dismiss
+    /// `nil` in previews, which then show no listen button.
+    @Environment(EraPublisher.self) private var publisher: EraPublisher?
     /// The content's height, so short eras get a short sheet.
     @State private var contentHeight: CGFloat = 420
+
+    private var hasPublisher: Bool { publisher != nil }
 
     var body: some View {
         // A sync can delete this era while it's on screen. Draw nothing for
@@ -47,7 +51,12 @@ struct EraSheet: View {
                 Text(era.summary)
                     .font(Theme.display(17))
 
-                SongList(sections: SongSection.groups(of: era.songs), listenURL: era.playlist?.appleMusicURL)
+                SongList(
+                    sections: SongSection.groups(of: era.songs),
+                    listenButton: hasPublisher && EraPublisher.canListen(to: era)
+                        ? AnyView(EraListenButton(era: era, style: .plain))
+                        : nil
+                )
             }
             .padding(.horizontal, 16)
             .padding(.top, 20)
