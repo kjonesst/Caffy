@@ -36,6 +36,12 @@ final class EraPublisher {
         let url: URL
         /// The playlist was just made, so the cover guide may be shown.
         let isFirstPublish: Bool
+        /// The photo for the playlist's cover: the one in the cover album,
+        /// or else the era's highlight. `nil` when the era has no photo.
+        var coverPhotoID: String? = nil
+        /// The cover photo is in the "Caffinated" album, so the guide can
+        /// send the user there.
+        var coverIsInAlbum = false
     }
 
     private(set) var states: [String: State] = [:]
@@ -43,23 +49,29 @@ final class EraPublisher {
     @ObservationIgnored private let context: ModelContext
     @ObservationIgnored private let publisher: any PlaylistPublishing
     @ObservationIgnored private let lookup: any CatalogSongLookup
+    @ObservationIgnored private let album: (any CoverAlbum)?
     @ObservationIgnored private let now: () -> Date
 
     init(
         context: ModelContext,
         publisher: any PlaylistPublishing,
         lookup: any CatalogSongLookup,
+        album: (any CoverAlbum)? = nil,
         now: @escaping () -> Date = { .now }
     ) {
         self.context = context
         self.publisher = publisher
         self.lookup = lookup
+        self.album = album
         self.now = now
     }
 
-    /// The app's publisher: MusicKit for the catalog and the library.
+    /// The app's publisher: MusicKit for the catalog and the library, and
+    /// PhotoKit for the cover album.
     static func live(context: ModelContext) -> EraPublisher {
-        EraPublisher(context: context, publisher: LivePlaylistPublisher(), lookup: LiveCatalogSongLookup())
+        EraPublisher(
+            context: context, publisher: LivePlaylistPublisher(), lookup: LiveCatalogSongLookup(), album: PhotoKitCoverAlbum()
+        )
     }
 
     func state(for era: Era) -> State {
@@ -116,14 +128,34 @@ final class EraPublisher {
             try ledger.save(published, forEraID: eraID)
             guard let url = published.url else { return fail(eraID, .couldNotReach) }
 
+            let cover = await addCoverToAlbum(for: era, eraID: eraID, ledger: ledger)
             states[eraID] = .idle
-            if case .created = outcome {
-                return ListenResult(url: url, isFirstPublish: true)
-            }
-            return ListenResult(url: url, isFirstPublish: false)
+            let isFirstPublish = if case .created = outcome { true } else { false }
+            return ListenResult(
+                url: url, isFirstPublish: isFirstPublish, coverPhotoID: cover.photoID, coverIsInAlbum: cover.isInAlbum
+            )
         } catch {
             context.rollback()
             return fail(eraID, .couldNotReach)
+        }
+    }
+
+    /// Puts the era's highlight photo in the cover album, once per playlist.
+    /// After that the same photo is kept, even if the era's newest photo
+    /// changes. The album is a convenience, so a failure (say, no Photos
+    /// access) doesn't fail the publish: the guide just doesn't mention it.
+    private func addCoverToAlbum(for era: Era, eraID: String, ledger: PlaylistLedger) async -> (photoID: String?, isInAlbum: Bool) {
+        if let saved = try? ledger.coverPhotoID(forEraID: eraID) {
+            return (saved, true)
+        }
+        guard let photoID = era.highlightMoment?.photoAssetIdentifier else { return (nil, false) }
+        guard let album else { return (photoID, false) }
+        do {
+            try await album.add(photo: photoID)
+            try ledger.setCoverPhotoID(photoID, forEraID: eraID)
+            return (photoID, true)
+        } catch {
+            return (photoID, false)
         }
     }
 

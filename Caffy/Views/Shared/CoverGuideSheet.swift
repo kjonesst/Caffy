@@ -4,11 +4,16 @@ import SwiftUI
 /// highlight photo, and how to make it the playlist's cover.
 ///
 /// Apps can't set a playlist's cover (MusicKit has no way to), so the user
-/// does it in Apple Music in a few taps. The photo is already in their
-/// library; its date and place help them find it in the picker.
+/// does it in Apple Music in a few taps. The photo is normally waiting in
+/// the "Caffinated" album (`CoverAlbum`), which the steps point to; if it
+/// couldn't be added there, its date and place help find it instead.
 struct CoverGuideSheet: View {
     let era: Era
     let playlistURL: URL
+    /// The photo to use as the cover (`EraPublisher.ListenResult.coverPhotoID`).
+    let photoID: String
+    /// The photo is in the cover album.
+    let isInAlbum: Bool
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
@@ -16,9 +21,27 @@ struct CoverGuideSheet: View {
 
     private static let photoSize = CGSize(width: 220, height: 220)
 
+    @State private var showsAlbum = false
+
+    /// The highlight photo as a taped-in print.
+    private var photoPrint: some View {
+        PhotoThumbnail(
+            assetIdentifier: photoID,
+            seed: era.title,
+            size: Self.photoSize,
+            showsIcon: false
+        )
+        .frame(width: Self.photoSize.width, height: Self.photoSize.height)
+        .padding(8)
+        .background(.white)
+        .rotationEffect(.degrees(-2))
+        .shadow(color: .black.opacity(0.18), radius: 10, y: 6)
+        .contentShape(.rect)
+    }
+
     var body: some View {
         let palette = era.palette
-        let highlight = era.highlightMoment
+        let highlight = era.moments.first { $0.photoAssetIdentifier == photoID }
 
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
@@ -31,23 +54,30 @@ struct CoverGuideSheet: View {
                     .font(Theme.display(17))
 
                 VStack(spacing: 6) {
-                    PhotoThumbnail(
-                        assetIdentifier: highlight?.photoAssetIdentifier,
-                        seed: era.title,
-                        size: Self.photoSize,
-                        showsIcon: false
-                    )
-                    .frame(width: Self.photoSize.width, height: Self.photoSize.height)
-                    .padding(8)
-                    .background(.white)
-                    .rotationEffect(.degrees(-2))
-                    .shadow(color: .black.opacity(0.18), radius: 10, y: 6)
-                    .accessibilityHidden(true)
+                    // In the album, the print opens it; otherwise it's just the photo.
+                    if isInAlbum {
+                        Button {
+                            showsAlbum = true
+                        } label: {
+                            photoPrint
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Show the \(PhotoKitCoverAlbum.title) album")
+                        .accessibilityHint("Shows every era's cover photo")
+                    } else {
+                        photoPrint
+                            .accessibilityHidden(true)
+                    }
 
                     if let highlight {
                         Text(caption(for: highlight))
                             .font(Theme.handwritten(24))
                             .multilineTextAlignment(.center)
+                    }
+                    if isInAlbum {
+                        Text("Tap the photo to see the \(PhotoKitCoverAlbum.title) album")
+                            .font(Theme.mono(11))
+                            .opacity(0.8)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -56,7 +86,22 @@ struct CoverGuideSheet: View {
                 VStack(alignment: .leading, spacing: 12) {
                     step(1, "Tap Open in Apple Music below.")
                     step(2, "In the playlist, tap ••• and then Edit.")
-                    step(3, "Tap the cover, choose Choose Photo, and pick this photo.")
+                    if isInAlbum {
+                        step(3, "Tap the cover and choose Choose Photo.")
+                        step(4, "Open Albums, then \(PhotoKitCoverAlbum.title), and pick this photo.")
+                    } else {
+                        step(3, "Tap the cover, choose Choose Photo, and pick this photo.")
+                    }
+                }
+
+                if isInAlbum {
+                    Label {
+                        Text("Caffy keeps every era's cover photo in the \(PhotoKitCoverAlbum.title) album in Photos.")
+                            .font(Theme.mono(12))
+                            .fixedSize(horizontal: false, vertical: true)
+                    } icon: {
+                        Image(systemName: "photo.stack")
+                    }
                 }
 
                 Button {
@@ -90,6 +135,9 @@ struct CoverGuideSheet: View {
         }
         .presentationDetents([.large])
         .presentationBackground(palette.paper)
+        .sheet(isPresented: $showsAlbum) {
+            CoverAlbumSheet(highlightID: photoID, palette: palette)
+        }
     }
 
     private func step(_ number: Int, _ text: LocalizedStringKey) -> some View {

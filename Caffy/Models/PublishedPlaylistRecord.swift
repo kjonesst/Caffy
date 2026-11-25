@@ -21,6 +21,10 @@ final class PublishedPlaylistRecord {
     /// The catalog ids last published, in order.
     var songIDs: [String]
     var publishedAt: Date
+    /// The photo added to the "Caffinated" album as this playlist's cover
+    /// (see `CoverAlbum`). Kept so it's added once, and stays the same photo
+    /// even as the era's newest photo changes. `nil` until added.
+    var coverPhotoID: String?
 
     init(eraID: String, link: PlaylistLink) {
         self.eraID = eraID

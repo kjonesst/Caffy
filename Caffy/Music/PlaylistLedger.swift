@@ -54,6 +54,18 @@ struct PlaylistLedger {
         return changed
     }
 
+    /// The photo already put in the cover album for an era's playlist.
+    func coverPhotoID(forEraID eraID: String) throws -> String? {
+        try record(forEraID: eraID)?.coverPhotoID
+    }
+
+    /// Records the photo put in the cover album. Needs a saved link first.
+    func setCoverPhotoID(_ photoID: String, forEraID eraID: String) throws {
+        guard let record = try record(forEraID: eraID) else { return }
+        record.assign(photoID, to: \.coverPhotoID)
+        try context.save()
+    }
+
     private func record(forEraID eraID: String) throws -> PublishedPlaylistRecord? {
         var descriptor = FetchDescriptor<PublishedPlaylistRecord>(predicate: #Predicate { $0.eraID == eraID })
         descriptor.fetchLimit = 1

@@ -26,6 +26,8 @@ struct EraListenButton: View {
 
     private struct CoverGuide: Identifiable {
         let url: URL
+        let photoID: String
+        let isInAlbum: Bool
         var id: URL { url }
     }
 
@@ -39,7 +41,7 @@ struct EraListenButton: View {
                 }
             }
             .sheet(item: $coverGuide) { guide in
-                CoverGuideSheet(era: era, playlistURL: guide.url)
+                CoverGuideSheet(era: era, playlistURL: guide.url, photoID: guide.photoID, isInAlbum: guide.isInAlbum)
             }
         }
     }
@@ -60,8 +62,8 @@ struct EraListenButton: View {
                 music: permissions?.music ?? .notDetermined,
                 library: permissions?.library ?? .unknown
             ) else { return }
-            if result.isFirstPublish && showsCoverGuide && era.highlightMoment != nil {
-                coverGuide = CoverGuide(url: result.url)
+            if result.isFirstPublish && showsCoverGuide, let photoID = result.coverPhotoID {
+                coverGuide = CoverGuide(url: result.url, photoID: photoID, isInAlbum: result.coverIsInAlbum)
             } else {
                 openURL(result.url)
             }

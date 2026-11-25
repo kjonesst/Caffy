@@ -16,9 +16,18 @@ struct EraPublisherTests {
         container = try CaffyStore.makeContainer(inMemory: true)
     }
 
-    private func publisher(knowing ids: [String] = ["1", "2", "3"]) -> (EraPublisher, FakeCatalogLookup) {
+    private func publisher(knowing ids: [String] = ["1", "2", "3"], album: (any CoverAlbum)? = nil) -> (EraPublisher, FakeCatalogLookup) {
         let lookup = FakeCatalogLookup(knowing: ids)
-        return (EraPublisher(context: context, publisher: library, lookup: lookup, now: { Self.now }), lookup)
+        return (EraPublisher(context: context, publisher: library, lookup: lookup, album: album, now: { Self.now }), lookup)
+    }
+
+    /// Gives the era a moment with a photo, which becomes its highlight.
+    private func addPhoto(_ assetID: String, to era: Era) throws {
+        let moment = Moment(date: Self.now, songs: nil)
+        moment.photoAssetIdentifier = assetID
+        context.insert(moment)
+        moment.era = era
+        try context.save()
     }
 
     private func publisher(lookup: any CatalogSongLookup) -> EraPublisher {
@@ -164,6 +173,83 @@ struct EraPublisherTests {
 
         #expect(await listen(publisher, to: era) != nil)
         #expect(await lookup.lookups.isEmpty)
+    }
+
+    // MARK: - Cover album
+
+    @Test func theFirstPublishPutsTheHighlightInTheCoverAlbumOnce() async throws {
+        let era = try insertEra()
+        try addPhoto("photo-1", to: era)
+        let album = FakeCoverAlbum()
+        let (publisher, _) = publisher(album: album)
+
+        let first = try #require(await listen(publisher, to: era))
+        let second = try #require(await listen(publisher, to: era))
+
+        #expect(first.coverPhotoID == "photo-1" && first.coverIsInAlbum)
+        #expect(second.coverPhotoID == "photo-1" && second.coverIsInAlbum)
+        #expect(await album.added == ["photo-1"])
+        #expect(try PlaylistLedger(context: context).coverPhotoID(forEraID: "e1") == "photo-1")
+    }
+
+    @Test func theCoverStaysTheSameWhenANewerPhotoArrives() async throws {
+        let era = try insertEra()
+        try addPhoto("photo-1", to: era)
+        let album = FakeCoverAlbum()
+        let (publisher, _) = publisher(album: album)
+        _ = await listen(publisher, to: era)
+
+        let newer = Moment(date: Self.now.addingTimeInterval(3_600), songs: nil)
+        newer.photoAssetIdentifier = "photo-2"
+        context.insert(newer)
+        newer.era = era
+        let result = try #require(await listen(publisher, to: era))
+
+        #expect(result.coverPhotoID == "photo-1")
+        #expect(await album.added == ["photo-1"])
+    }
+
+    @Test func anAlbumFailureStillPublishesAndTriesAgainNextTime() async throws {
+        let era = try insertEra()
+        try addPhoto("photo-1", to: era)
+        let (failing, _) = publisher(album: FakeCoverAlbum(failing: .noAccess))
+
+        let result = try #require(await listen(failing, to: era))
+
+        #expect(result.isFirstPublish)
+        #expect(result.coverPhotoID == "photo-1" && !result.coverIsInAlbum)
+        #expect(try PlaylistLedger(context: context).coverPhotoID(forEraID: "e1") == nil)
+
+        let album = FakeCoverAlbum()
+        let (working, _) = publisher(album: album)
+        let retry = try #require(await listen(working, to: era))
+        #expect(retry.coverIsInAlbum)
+        #expect(await album.added == ["photo-1"])
+    }
+
+    @Test func anEraWithoutPhotosHasNoCover() async throws {
+        let era = try insertEra()
+        let album = FakeCoverAlbum()
+        let (publisher, _) = publisher(album: album)
+
+        let result = try #require(await listen(publisher, to: era))
+
+        #expect(result.coverPhotoID == nil && !result.coverIsInAlbum)
+        #expect(await album.added.isEmpty)
+    }
+
+    @Test func aRemadePlaylistKeepsItsCoverPhoto() async throws {
+        let era = try insertEra()
+        try addPhoto("photo-1", to: era)
+        let album = FakeCoverAlbum()
+        let (publisher, _) = publisher(album: album)
+        _ = await listen(publisher, to: era)
+        await library.delete("p.1")
+
+        let result = try #require(await listen(publisher, to: era))
+
+        #expect(result.isFirstPublish && result.coverIsInAlbum)
+        #expect(await album.added == ["photo-1"])
     }
 
     @Test func onlyRealErasWithMusicOfferListening() throws {

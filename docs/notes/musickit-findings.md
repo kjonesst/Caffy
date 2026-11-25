@@ -45,7 +45,15 @@ Open: does it replace, append or dedupe, and are order and duplicates kept? Answ
 - `Playlist.artwork` is read-only.
 - MediaPlayer's `MPMediaPlaylistCreationMetadata` has only a name, author and description.
 
-So Apple Music builds the cover from album art. Caffy shows a one-time guide after an era's first publish: the era's highlight photo, plus steps to set it as the cover in Apple Music. The guide's wording (••• → Edit → tap the cover → Choose Photo) still needs checking on a device.
+So Apple Music builds the cover from album art. Caffy shows a one-time guide after an era's first publish: the era's highlight photo, plus steps to set it as the cover in Apple Music.
+
+- **25 Nov 2026:** the guide renders correctly on the device.
+- **Album step (added 25 Nov 2026):** the photo goes into a "Caffinated" Photos album (`PhotoKitCoverAlbum`), and the guide says: ••• → Edit → tap the cover → Choose Photo → Albums → Caffinated.
+- **The album is created on the device (25 Nov 2026).** iOS has no public way for an app to open a particular album in the Photos app. So tapping the guide's photo opens `CoverAlbumSheet`, which shows the album's photos inside Caffy, read live through PhotoKit.
+- **Still to check on a device:**
+  - that the wording matches Apple Music's screens
+  - that Apple Music's photo picker shows the album
+  - whether a limited Photos library allows making the album
 
 ## Decisions
 

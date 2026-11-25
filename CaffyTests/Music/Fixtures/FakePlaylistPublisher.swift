@@ -80,6 +80,26 @@ actor FakeCatalogLookup: CatalogSongLookup {
     }
 }
 
+/// A Photos album kept in memory. Records each photo added, or fails.
+actor FakeCoverAlbum: CoverAlbum {
+    /// In the order added.
+    private(set) var added: [String] = []
+    private let failure: CoverAlbumError?
+
+    init(failing failure: CoverAlbumError? = nil) {
+        self.failure = failure
+    }
+
+    func add(photo assetIdentifier: String) async throws {
+        if let failure { throw failure }
+        added.append(assetIdentifier)
+    }
+
+    func photos() async -> [String] {
+        added.reversed()
+    }
+}
+
 extension EraSong {
     /// A near-play era song with the given id.
     static func fixture(_ id: String, evidence: SongEvidence = .nearPlay) -> EraSong {
