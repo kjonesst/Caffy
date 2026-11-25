@@ -304,6 +304,28 @@ struct MusicMatcherTests {
         #expect(homeAfter.allSatisfy { $0.songs.allSatisfy { $0.song.artist == "Tame Impala" } })
     }
 
+    // MARK: - Seeded plays
+
+    @Test func aSeededAndObservedDuplicateKeepsTheObservedPlay() {
+        let observed = Self.play("a", at: 0)
+        var seeded = observed
+        seeded.isSeeded = true
+        for plays in [[seeded, observed], [observed, seeded]] {
+            let songs = Self.songs(for: Self.moment(), plays)
+            #expect(songs.map(\.playCount) == [1])
+            #expect(songs.map(\.observedPlayCount) == [1])
+        }
+    }
+
+    @Test func seededPlaysMatchButAreNotObserved() {
+        var seeded = Self.play("a", at: 0)
+        seeded.isSeeded = true
+        let songs = Self.songs(for: Self.moment(), [seeded, Self.play("b", at: 5)])
+        #expect(Set(songs.map(\.song.id)) == ["a", "b"])
+        #expect(songs.first { $0.song.id == "a" }?.observedPlayCount == 0)
+        #expect(songs.first { $0.song.id == "b" }?.observedPlayCount == 1)
+    }
+
     @Test func silentStretchHasNoSongs() {
         let scenario = Scenario()
             .live(at: .sydney, days: 14)

@@ -36,6 +36,9 @@ nonisolated final class RecordedPlay {
     var isEstimated: Bool
     /// `false` when the window is too long to match to a moment.
     var isMatchable: Bool
+    /// A last-played date from before recording began, not a play Caffy saw
+    /// happen. See `ListeningEvent.isSeeded`.
+    var isSeeded: Bool = false
     var recordedAt: Date
 
     init(_ event: ListeningEvent, recordedAt: Date) {
@@ -45,11 +48,12 @@ nonisolated final class RecordedPlay {
         end = event.interval.end
         isEstimated = event.isEstimated
         isMatchable = event.isMatchable
+        isSeeded = event.isSeeded
         self.recordedAt = recordedAt
     }
 
     var event: ListeningEvent {
-        ListeningEvent(song: song, interval: DateInterval(start: start, end: max(start, end)), isEstimated: isEstimated, isMatchable: isMatchable)
+        ListeningEvent(song: song, interval: DateInterval(start: start, end: max(start, end)), isEstimated: isEstimated, isMatchable: isMatchable, isSeeded: isSeeded)
     }
 }
 
@@ -61,14 +65,19 @@ nonisolated final class RecordedPlay {
 nonisolated final class ListeningCheck {
     var at: Date
     var songCount: Int
+    /// Observed exact plays. Checks saved before seeded plays were told
+    /// apart count seeded ones here too.
     var newExactPlays: Int
     var newEstimatedPlays: Int
+    /// Last-played dates from before recording (see `ListeningEvent.isSeeded`).
+    var newSeededPlays: Int = 0
 
-    init(at: Date, songCount: Int, newExactPlays: Int, newEstimatedPlays: Int) {
+    init(at: Date, songCount: Int, newExactPlays: Int, newEstimatedPlays: Int, newSeededPlays: Int = 0) {
         self.at = at
         self.songCount = songCount
         self.newExactPlays = newExactPlays
         self.newEstimatedPlays = newEstimatedPlays
+        self.newSeededPlays = newSeededPlays
     }
 }
 
@@ -79,7 +88,12 @@ nonisolated final class ListeningCheck {
 /// derives (and may one day clear with "Rebuild eras"). Only "Delete all
 /// data" should clear it, through `deleteAll(in:)`.
 nonisolated enum ListeningHistoryStore {
-    static let models: [any PersistentModel.Type] = [LibrarySongState.self, RecordedPlay.self, ListeningCheck.self]
+    /// `PublishedPlaylistRecord` and `CatalogArtwork` aren't listening
+    /// history, but they live here for the same reason: they must survive a
+    /// rebuild of the derived store.
+    static let models: [any PersistentModel.Type] = [
+        LibrarySongState.self, RecordedPlay.self, ListeningCheck.self, PublishedPlaylistRecord.self, CatalogArtwork.self
+    ]
 
     /// The store's configuration.
     ///
@@ -104,6 +118,39 @@ nonisolated enum ListeningHistoryStore {
         try context.delete(model: LibrarySongState.self)
         try context.delete(model: ListeningCheck.self)
         try context.save()
+    }
+
+    // MARK: - One-off fixes
+
+    /// The `UserDefaults` key (shared with `@AppStorage`) recording that
+    /// `markSeededPlays(in:)` has run.
+    static let markSeededPlaysKey = "didMarkSeededPlays"
+
+    /// Plays recorded before seeded plays were told apart were all saved as
+    /// observed. This marks the ones that must be seeded, once.
+    static func markSeededPlaysOnce(in context: ModelContext, defaults: UserDefaults) throws {
+        guard !defaults.bool(forKey: markSeededPlaysKey) else { return }
+        try markSeededPlays(in: context)
+        defaults.set(true, forKey: markSeededPlaysKey)
+    }
+
+    /// Marks every play that ends before recording began as seeded: the
+    /// recorder can't have seen a play from before it first read the library.
+    /// Recording began at the earliest `LibrarySongState.firstSeenAt`. Running
+    /// it again changes nothing. Returns how many plays changed.
+    @discardableResult
+    static func markSeededPlays(in context: ModelContext) throws -> Int {
+        var first = FetchDescriptor<LibrarySongState>(sortBy: [SortDescriptor(\.firstSeenAt)])
+        first.fetchLimit = 1
+        guard let recordingStart = try context.fetch(first).first?.firstSeenAt else { return 0 }
+        let plays = try context.fetch(FetchDescriptor<RecordedPlay>(
+            predicate: #Predicate { $0.end < recordingStart && !$0.isSeeded }
+        ))
+        for play in plays {
+            play.isSeeded = true
+        }
+        if !plays.isEmpty { try context.save() }
+        return plays.count
     }
 }
 

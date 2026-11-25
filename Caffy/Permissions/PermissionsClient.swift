@@ -25,8 +25,9 @@ struct LivePermissionsClient: PermissionsClient {
     }
 
     func libraryAccess() async -> MusicLibraryAccess {
-        // Needs a MusicKit developer token, so it throws until the App ID has
-        // the MusicKit service (paid Developer Program).
+        // Needs the MusicKit developer token, which the App ID's MusicKit
+        // service provides. With it, this only fails when the check itself
+        // can't run, such as offline (see docs/notes/musickit-findings.md).
         guard let subscription = try? await MusicSubscription.current else { return .unknown }
         guard subscription.canPlayCatalogContent else {
             return .needsSubscription(canSubscribe: subscription.canBecomeSubscriber)

@@ -4,9 +4,11 @@ import SwiftData
 /// How well real listening data covers the user's photo moments: the
 /// go/no-go check for matching songs to moments (README roadmap step 3).
 ///
-/// Every moment is matched twice: once with only the library's last-played
-/// dates (what the library says with nothing recorded), and once with the
-/// history Caffy has recorded (what the app actually uses).
+/// Every moment is matched three times: with only the library's last-played
+/// dates (what the library says with nothing recorded), with the history
+/// Caffy has recorded (what the app actually uses), and with only the plays
+/// Caffy saw happen (recorded history without seeded plays: what recording
+/// adds). The verdict reads the last one.
 nonisolated struct ListeningCoverage: Equatable, Sendable {
     /// How long ago something happened.
     enum Age: Int, CaseIterable, Comparable, Sendable {
@@ -52,10 +54,11 @@ nonisolated struct ListeningCoverage: Equatable, Sendable {
         }
     }
 
-    /// The go/no-go answer, judged on the last 30 days of moments.
+    /// The go/no-go answer, judged on the moments since recording began,
+    /// matched with observed plays only.
     enum Verdict: Equatable, Sendable {
         case tooEarly(daysRecorded: Int)
-        case noRecentMoments
+        case noMomentsSinceRecording
         case pass(nearShare: Double)
         case borderline(nearShare: Double)
         case fail(nearShare: Double)
@@ -80,6 +83,9 @@ nonisolated struct ListeningCoverage: Equatable, Sendable {
     /// When Caffy first read the library, if it has.
     let recordingSince: Date?
     let libraryReads: Int
+    /// Last-played dates from before recording began (`ListeningEvent.isSeeded`).
+    let seededPlays: Int
+    /// Exact plays Caffy saw happen.
     let exactPlays: Int
     let estimatedPlays: Int
     /// Estimated plays whose window was too long to match to a moment.
@@ -90,6 +96,12 @@ nonisolated struct ListeningCoverage: Equatable, Sendable {
     let lastPlayedMatches: [Age: MatchCounts]
     /// Moments by age, matched with recorded history.
     let recordedMatches: [Age: MatchCounts]
+    /// Moments by age, matched with observed plays only (recorded history
+    /// without seeded plays).
+    let observedMatches: [Age: MatchCounts]
+    /// Moments that started once recording had begun, matched with observed
+    /// plays only. What the verdict judges.
+    let observedSinceRecording: MatchCounts
 
     /// What `dateAdded` could add to each era's songs.
     let additions: LibraryAdditionsReport
@@ -123,14 +135,20 @@ nonisolated struct ListeningCoverage: Equatable, Sendable {
 
         self.recordingSince = recordingSince
         self.libraryReads = libraryReads
-        exactPlays = recordedPlays.count { !$0.isEstimated }
-        estimatedPlays = recordedPlays.count { $0.isEstimated }
+        seededPlays = recordedPlays.count { $0.isSeeded }
+        exactPlays = recordedPlays.count { !$0.isEstimated && !$0.isSeeded }
+        estimatedPlays = recordedPlays.count { $0.isEstimated && !$0.isSeeded }
         unmatchablePlays = recordedPlays.count { !$0.isMatchable }
 
         self.moments = moments.count
         let lastPlayed = MediaPlayerListeningSource.plays(from: songs)
         lastPlayedMatches = Self.counts(MusicMatcher.match(moments, with: lastPlayed, calendar: calendar, config: config), now: now)
         recordedMatches = Self.counts(MusicMatcher.match(moments, with: recordedPlays, calendar: calendar, config: config), now: now)
+        let observed = MusicMatcher.match(moments, with: recordedPlays.filter { !$0.isSeeded }, calendar: calendar, config: config)
+        observedMatches = Self.counts(observed, now: now)
+        observedSinceRecording = recordingSince.map { since in
+            Self.counts(observed.filter { $0.moment.start >= since }, now: now).values.reduce(MatchCounts(), +)
+        } ?? MatchCounts()
         additions = LibraryAdditionsReport(songs: songs, eras: eras, playlists: playlists, now: now, calendar: calendar, config: config)
     }
 
@@ -154,16 +172,13 @@ nonisolated struct ListeningCoverage: Equatable, Sendable {
         recordingSince.map { max(0, Int(now.timeIntervalSince($0) / (24 * 60 * 60))) } ?? 0
     }
 
-    /// Recorded-history matches for moments from the last 30 days.
-    var recentRecordedMatches: MatchCounts {
-        [Age.day, .week, .month].reduce(MatchCounts()) { $0 + (recordedMatches[$1] ?? MatchCounts()) }
-    }
-
+    /// Judged on `observedSinceRecording`: most of a 30-day window would
+    /// predate recording, and seeded plays aren't what recording adds.
     var verdict: Verdict {
         guard daysRecorded >= Self.daysNeeded else { return .tooEarly(daysRecorded: daysRecorded) }
-        let recent = recentRecordedMatches
-        guard recent.total > 0 else { return .noRecentMoments }
-        let share = recent.nearShare
+        let judged = observedSinceRecording
+        guard judged.total > 0 else { return .noMomentsSinceRecording }
+        let share = judged.nearShare
         if share >= Self.passShare { return .pass(nearShare: share) }
         if share >= Self.borderlineShare { return .borderline(nearShare: share) }
         return .fail(nearShare: share)
@@ -189,17 +204,24 @@ nonisolated struct ListeningCoverage: Equatable, Sendable {
         } else {
             lines.append("Not recording yet")
         }
-        lines.append("Plays: \(exactPlays) exact · \(estimatedPlays) estimated (\(unmatchablePlays) too vague to match)")
+        lines.append(
+            "Plays: \(seededPlays) seeded (last-played dates from before recording) · \(exactPlays) observed exact · "
+                + "\(estimatedPlays) estimated (\(unmatchablePlays) too vague to match)"
+        )
 
         lines.append("")
         lines.append("MOMENTS: \(moments) (near / same day only / none)")
-        lines.append(Self.row("", "last-played only", "recorded history"))
+        lines.append(Self.row("", "last-played only", "recorded history", "observed only"))
         for age in Age.allCases {
-            lines.append(Self.row(age.label, Self.cell(lastPlayedMatches[age]), Self.cell(recordedMatches[age])))
+            lines.append(Self.row(
+                age.label, Self.cell(lastPlayedMatches[age]), Self.cell(recordedMatches[age]), Self.cell(observedMatches[age])
+            ))
         }
         let allLastPlayed = lastPlayedMatches.values.reduce(MatchCounts(), +)
         let allRecorded = recordedMatches.values.reduce(MatchCounts(), +)
-        lines.append(Self.row("all", Self.cell(allLastPlayed), Self.cell(allRecorded)))
+        let allObserved = observedMatches.values.reduce(MatchCounts(), +)
+        lines.append(Self.row("all", Self.cell(allLastPlayed), Self.cell(allRecorded), Self.cell(allObserved)))
+        lines.append("Since recording began, observed only: \(Self.cell(observedSinceRecording))")
 
         lines.append("")
         lines.append(additions.text)
@@ -207,8 +229,8 @@ nonisolated struct ListeningCoverage: Equatable, Sendable {
         lines.append("")
         lines.append("VERDICT: \(verdictText)")
         lines.append(
-            "Pass: ≥ \(Self.percent(Self.passShare)) of the last 30 days' moments have songs played near them, "
-                + "after \(Self.daysNeeded) days of recording. Borderline: \(Self.percent(Self.borderlineShare))–\(Self.percent(Self.passShare)). "
+            "Pass: ≥ \(Self.percent(Self.passShare)) of the moments since recording began have songs Caffy saw played near them "
+                + "(observed only), after \(Self.daysNeeded) days of recording. Borderline: \(Self.percent(Self.borderlineShare))–\(Self.percent(Self.passShare)). "
                 + "Then spot-check 10 matched moments (pass: 7 right)."
         )
         return lines.joined(separator: "\n")
@@ -217,7 +239,7 @@ nonisolated struct ListeningCoverage: Equatable, Sendable {
     private var verdictText: String {
         switch verdict {
         case .tooEarly(let days): "Too early: \(days) of \(Self.daysNeeded) days recorded"
-        case .noRecentMoments: "No moments in the last 30 days to judge"
+        case .noMomentsSinceRecording: "No moments since recording began to judge"
         case .pass(let share): "Pass (\(Self.percent(share)) near)"
         case .borderline(let share): "Borderline (\(Self.percent(share)) near): try background recording"
         case .fail(let share): "Fail (\(Self.percent(share)) near): music becomes era-level only"
@@ -229,10 +251,11 @@ nonisolated struct ListeningCoverage: Equatable, Sendable {
         return "\(counts.near) / \(counts.looseOnly) / \(counts.none)"
     }
 
-    private static func row(_ label: String, _ first: String, _ second: String) -> String {
-        label.padding(toLength: 10, withPad: " ", startingAt: 0)
+    private static func row(_ label: String, _ first: String, _ second: String, _ third: String) -> String {
+        label.padding(toLength: 11, withPad: " ", startingAt: 0)
             + first.padding(toLength: 18, withPad: " ", startingAt: 0)
-            + second
+            + second.padding(toLength: 18, withPad: " ", startingAt: 0)
+            + third
     }
 
     private static func percent(_ share: Double) -> String {
@@ -288,7 +311,7 @@ extension ListeningCoverage {
                 end: era.endDate ?? now,
                 isTrip: era.kind == .trip
             ))
-            playlists[id] = LibraryAdditionsReport.PlaylistSplit(era.songs)
+            playlists[id] = LibraryAdditionsReport.PlaylistSplit(era)
         }
         return (eras, playlists)
     }

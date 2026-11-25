@@ -17,6 +17,9 @@ nonisolated struct BuiltEra: Equatable, Sendable {
     /// Songs added to the library during this era, best first. Whether a
     /// frozen era takes them is `EraStore`'s call.
     var addedSongs: [EraSong] = []
+    /// The era's near songs that are corroborated, for
+    /// `seededPlaysNeedCorroboration` (see `EraPipeline.corroboratedSongIDs`).
+    var corroboratedSongIDs: Set<String> = []
 }
 
 /// Everything the pipeline works out from a library.
@@ -38,7 +41,13 @@ nonisolated struct EraPipelineResult: Equatable, Sendable {
     func playlist(for era: BuiltEra, config: EraBuildConfig = .standard) -> [EraSong] {
         // Newest moment first, like `Era.momentsNewestFirst`.
         let momentSongs = era.draft.momentIDs.reversed().map { matches[$0] ?? [] }
-        return EraPlaylist.build(momentSongs: momentSongs, added: era.addedSongs, includeLoose: config.includeLoosePlaysInEraPlaylist)
+        return EraPlaylist.build(
+            momentSongs: momentSongs,
+            added: era.addedSongs,
+            includeLoose: config.includeLoosePlaysInEraPlaylist,
+            seededNeedCorroboration: config.seededPlaysNeedCorroboration,
+            corroborated: era.corroboratedSongIDs
+        )
     }
 }
 
@@ -100,12 +109,16 @@ nonisolated struct EraPipeline: Sendable {
             for: open, moments: moments, sampler: sampler, after: lastSavedPalette, config: config
         )
         let narrator = TemplateNarrator(calendar: calendar, now: now, config: config)
+        let corroborated = Self.corroboratedSongIDs(
+            for: build.drafts, matches: matches, plays: plays, library: library, now: now, config: config
+        )
 
         let eras = build.drafts.map { draft in
             if let saved = saved[draft.id] {
                 return BuiltEra(
                     draft: draft, content: saved.content, palette: saved.palette,
-                    isFrozen: true, addedSongs: additions[draft.id] ?? []
+                    isFrozen: true, addedSongs: additions[draft.id] ?? [],
+                    corroboratedSongIDs: corroborated[draft.id] ?? []
                 )
             }
             return BuiltEra(
@@ -113,10 +126,52 @@ nonisolated struct EraPipeline: Sendable {
                 content: narrator.content(for: factsByID[draft.id]!),
                 palette: palettes[draft.id]!,
                 isFrozen: build.frozenIDs.contains(draft.id),
-                addedSongs: additions[draft.id] ?? []
+                addedSongs: additions[draft.id] ?? [],
+                corroboratedSongIDs: corroborated[draft.id] ?? []
             )
         }
         return EraPipelineResult(eras: eras, matches: matches)
+    }
+
+    /// For each era, by id: its near songs that something besides a seeded
+    /// play backs up. A song is corroborated when its `dateAdded` falls in
+    /// the era's addition window (`start − additionLeadIn` to `end`, so it
+    /// was new then), or when it has an observed play within the era's dates.
+    /// Only near songs are checked, which keeps what's saved small.
+    static func corroboratedSongIDs(
+        for drafts: [EraDraft],
+        matches: [String: [EraSong]],
+        plays: [ListeningEvent],
+        library: [LibrarySongSnapshot],
+        now: Date,
+        config: EraBuildConfig
+    ) -> [String: Set<String>] {
+        var added: [String: [Date]] = [:]
+        for snapshot in library {
+            if let date = snapshot.dateAdded { added[snapshot.song.id, default: []].append(date) }
+        }
+        var observed: [String: [DateInterval]] = [:]
+        for play in plays where !play.isSeeded {
+            observed[play.song.id, default: []].append(play.interval)
+        }
+
+        var result: [String: Set<String>] = [:]
+        for draft in drafts {
+            let end = draft.end ?? now
+            let dates = DateInterval(start: draft.start, end: max(draft.start, end))
+            let additionStart = draft.start.addingTimeInterval(-config.additionLeadIn)
+            var near = Set<String>()
+            for id in draft.momentIDs {
+                for song in matches[id] ?? [] where song.evidence == .nearPlay {
+                    near.insert(song.song.id)
+                }
+            }
+            result[draft.id] = near.filter { id in
+                (added[id] ?? []).contains { $0 >= additionStart && $0 <= end }
+                    || (observed[id] ?? []).contains { $0.intersects(dates) }
+            }
+        }
+        return result
     }
 
     /// Each moment's songs with their evidence, keyed by moment id. Moments
@@ -129,7 +184,10 @@ nonisolated struct EraPipeline: Sendable {
             let reached = firstDay.map { calendar.startOfDay(for: moment.moment.start) >= $0 } ?? false
             guard !moment.songs.isEmpty || reached else { continue }
             result[moment.id] = moment.songs.map {
-                EraSong(song: $0.song, evidence: $0.isLoose ? .loosePlay : .nearPlay, score: $0.score)
+                EraSong(
+                    song: $0.song, evidence: $0.isLoose ? .loosePlay : .nearPlay, score: $0.score,
+                    hasObservedPlay: $0.observedPlayCount > 0
+                )
             }
         }
         return result

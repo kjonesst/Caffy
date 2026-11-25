@@ -10,6 +10,11 @@ struct EraPlaylistTests {
 
     private static func ids(_ songs: [EraSong]) -> [String] { songs.map(\.song.id) }
 
+    /// A near play, observed or seeded-only.
+    private static func near(_ id: String, _ score: Double = 1, observed: Bool?, title: String? = nil) -> EraSong {
+        EraSong(song: Song(id: id, title: title ?? id, artist: "Artist"), evidence: .nearPlay, score: score, hasObservedPlay: observed)
+    }
+
     @Test func nearPlaysThenAdditionsThenLoosePlays() {
         let playlist = EraPlaylist.build(
             momentSongs: [
@@ -67,7 +72,103 @@ struct EraPlaylistTests {
     @Test func tiesAreBrokenTheSameWayEveryTime() {
         let moments = [[Self.song("b", .nearPlay, 1), Self.song("a", .nearPlay, 1)]]
         let added = [Self.song("y", .libraryAdded, 1), Self.song("x", .libraryAdded, 1)]
-        // The song seen first wins a tie.
-        #expect(Self.ids(EraPlaylist.build(momentSongs: moments, added: added)) == ["b", "a", "y", "x"])
+        // Near songs tie on title; additions on the song seen first.
+        #expect(Self.ids(EraPlaylist.build(momentSongs: moments, added: added)) == ["a", "b", "y", "x"])
+    }
+
+    // MARK: - Evidence order
+
+    @Test func songsNearMoreMomentsComeFirst() {
+        let moments = [
+            [Self.near("strong", 5, observed: true), Self.near("twice", 0.5, observed: false)],
+            [Self.near("twice", 0.5, observed: false)]
+        ]
+        #expect(Self.ids(EraPlaylist.build(momentSongs: moments, added: [])) == ["twice", "strong"])
+    }
+
+    @Test func observedSongsComeBeforeSeededOnlyOnes() {
+        let moments = [[Self.near("seeded", 5, observed: false), Self.near("observed", 1, observed: true)]]
+        #expect(Self.ids(EraPlaylist.build(momentSongs: moments, added: [])) == ["observed", "seeded"])
+    }
+
+    @Test func thenScoreThenTitleThenID() {
+        let moments = [[
+            Self.near("c", 1, observed: true, title: "Same"),
+            Self.near("b", 1, observed: true, title: "Same"),
+            Self.near("z", 1, observed: true, title: "Alpha"),
+            Self.near("high", 2, observed: true, title: "Zulu")
+        ]]
+        #expect(Self.ids(EraPlaylist.build(momentSongs: moments, added: [])) == ["high", "z", "b", "c"])
+    }
+
+    @Test func oneObservedPlayAnywhereMakesASongObserved() {
+        let moments = [[Self.near("a", 1, observed: false)], [Self.near("a", 1, observed: true)], [Self.near("b", 1, observed: false)]]
+        let evidence = EraPlaylist.nearEvidence(momentSongs: moments)
+        #expect(evidence["a"] == EraPlaylist.NearEvidence(moments: 2, hasObservedOrUnknown: true))
+        #expect(evidence["b"]?.isSeededOnly == true)
+        #expect(evidence["a"]?.isSeededOnly == false)
+    }
+
+    @Test func unknownEvidenceIsNeverSeededOnly() {
+        // Moments saved before plays were told apart.
+        let moments = [[Self.near("old", 1, observed: nil), Self.near("observed", 2, observed: true)]]
+        #expect(EraPlaylist.nearEvidence(momentSongs: moments)["old"]?.isSeededOnly == false)
+        let playlist = EraPlaylist.build(momentSongs: moments, added: [], seededNeedCorroboration: true, corroborated: [])
+        #expect(Self.ids(playlist) == ["observed", "old"])
+    }
+
+    // MARK: - Corroboration flag
+
+    private static let flagMoments = [[
+        Self.near("observed", 3, observed: true),
+        Self.near("lonely", 2, observed: false),
+        Self.near("newThen", 1, observed: false),
+        Self.near("playedInEra", 1, observed: false, title: "p")
+    ]]
+
+    @Test func flagOffKeepsSeededOnlySongs() {
+        #expect(!EraBuildConfig.standard.seededPlaysNeedCorroboration)
+        let playlist = EraPlaylist.build(momentSongs: Self.flagMoments, added: [], corroborated: ["newThen"])
+        #expect(Self.ids(playlist) == ["observed", "lonely", "newThen", "playedInEra"])
+    }
+
+    @Test func flagOnDropsOnlyUncorroboratedSeededOnlySongs() {
+        let playlist = EraPlaylist.build(
+            momentSongs: Self.flagMoments, added: [],
+            seededNeedCorroboration: true, corroborated: ["newThen", "playedInEra"]
+        )
+        #expect(Self.ids(playlist) == ["observed", "newThen", "playedInEra"])
+    }
+
+    @Test func flagOnWithoutCorroborationFactsDropsNothing() {
+        let playlist = EraPlaylist.build(momentSongs: Self.flagMoments, added: [], seededNeedCorroboration: true, corroborated: nil)
+        #expect(playlist.count == 4)
+    }
+
+    @Test func corroboratedByDateAddedOrAnObservedPlayInTheEra() {
+        let day: TimeInterval = 24 * 60 * 60
+        let start = Date(timeIntervalSinceReferenceDate: 100 * day)
+        let end = start.addingTimeInterval(30 * day)
+        let draft = EraDraft(id: "era", kind: .home, momentIDs: ["m"], start: start, end: end, centre: nil, startReason: .firstMoment)
+        let ids = ["lonely", "newThen", "playedInEra", "addedLongAgo", "observedAfter"]
+        let matches = ["m": ids.map { Self.near($0, observed: false) }]
+        func song(_ id: String) -> Song { Song(id: id, title: id, artist: "Artist") }
+        func snapshot(_ id: String, added: Date) -> LibrarySongSnapshot {
+            LibrarySongSnapshot(persistentID: 1, catalogID: id, title: id, artist: "Artist", dateAdded: added)
+        }
+        let library = [
+            // In the lead-in, so it was new then.
+            snapshot("newThen", added: start.addingTimeInterval(-day)),
+            snapshot("addedLongAgo", added: start.addingTimeInterval(-60 * day))
+        ]
+        let plays = [
+            ListeningEvent(song: song("playedInEra"), interval: DateInterval(start: start.addingTimeInterval(5 * day), duration: 0)),
+            ListeningEvent(song: song("observedAfter"), interval: DateInterval(start: end.addingTimeInterval(day), duration: 0)),
+            ListeningEvent(song: song("lonely"), interval: DateInterval(start: start.addingTimeInterval(day), duration: 0), isSeeded: true)
+        ]
+        let corroborated = EraPipeline.corroboratedSongIDs(
+            for: [draft], matches: matches, plays: plays, library: library, now: end, config: .standard
+        )
+        #expect(corroborated["era"] == ["newThen", "playedInEra"])
     }
 }

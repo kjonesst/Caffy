@@ -34,6 +34,33 @@ struct PlayHistoryDiffTests {
         #expect(plays.allSatisfy { !$0.isEstimated && $0.isMatchable })
     }
 
+    @Test func firstSightingOnTheFirstPassIsSeeded() {
+        let plays = Self.diff(nil, .fixture(1, lastPlayed: T.hours(2), count: 9), previousCheck: nil)
+        #expect(plays.map(\.isSeeded) == [true])
+    }
+
+    @Test func firstSightingPlayedBeforeTheLastReadIsSeeded() {
+        // A song back under a new persistent id, with its old last-played date.
+        let plays = Self.diff(nil, .fixture(2, lastPlayed: T.hours(2), count: 9), previousCheck: T.hours(10))
+        #expect(plays.map(\.isSeeded) == [true])
+    }
+
+    @Test func firstSightingPlayedSinceTheLastReadIsObserved() {
+        let after = Self.diff(nil, .fixture(1, lastPlayed: T.hours(12), count: 1), previousCheck: T.hours(10))
+        #expect(after.map(\.isSeeded) == [false])
+        let exactlyThen = Self.diff(nil, .fixture(1, lastPlayed: T.hours(10), count: 1), previousCheck: T.hours(10))
+        #expect(exactlyThen.map(\.isSeeded) == [false])
+    }
+
+    @Test func playsFromLaterReadsAreNeverSeeded() {
+        let moved = Self.diff(Self.state(T.hours(0), 4), .fixture(1, lastPlayed: T.hours(5), count: 7), previousCheck: T.hours(1))
+        let synced = Self.diff(Self.state(T.hours(0), 4), .fixture(1, lastPlayed: T.hours(0), count: 6), previousCheck: T.hours(1))
+        let firstPlay = Self.diff(Self.state(nil, 0), .fixture(1, lastPlayed: T.hours(5), count: 1), previousCheck: nil)
+        let all = moved + synced + firstPlay
+        #expect(all.count == 6)
+        #expect(all.allSatisfy { !$0.isSeeded })
+    }
+
     @Test func neverPlayedSongRecordsNothing() {
         #expect(Self.diff(nil, .fixture(1)).isEmpty)
     }

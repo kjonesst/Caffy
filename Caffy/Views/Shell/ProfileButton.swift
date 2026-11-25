@@ -5,6 +5,7 @@ struct ProfileButton: View {
     #if DEBUG
     @AppStorage("hasOnboarded") private var hasOnboarded = true
     @State private var showsCoverage = false
+    @State private var showsSpike = false
     #endif
 
     var body: some View {
@@ -19,6 +20,9 @@ struct ProfileButton: View {
             Button("Listening coverage", systemImage: "waveform") {
                 showsCoverage = true
             }
+            Button("MusicKit spike", systemImage: "music.note.list") {
+                showsSpike = true
+            }
         } label: {
             avatar
         }
@@ -27,6 +31,9 @@ struct ProfileButton: View {
         .accessibilityLabel("Profile")
         .sheet(isPresented: $showsCoverage) {
             ListeningCoverageView()
+        }
+        .sheet(isPresented: $showsSpike) {
+            MusicKitSpikeView()
         }
         #else
         // The profile screen isn't designed yet, so this does nothing.

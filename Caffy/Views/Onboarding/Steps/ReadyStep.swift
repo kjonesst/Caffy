@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 /// Step 7: confirms what was set up. With both permissions it shows Caffy
@@ -105,6 +106,7 @@ private struct BuildingCollageVisual: View {
     @State private var stage = 0
 
     @Environment(\.colorScheme) private var colorScheme
+    @Query(sort: \Era.startDate, order: .reverse) private var eras: [Era]
 
     private typealias Copy = OnboardingCopy.Ready
     private static let stageDuration = 1.8
@@ -113,8 +115,16 @@ private struct BuildingCollageVisual: View {
         let palette = OnboardingStyle.palette(for: colorScheme)
 
         VStack(spacing: 10) {
-            // Placeholder art until real photos and playlists exist.
-            MemoryBurst(replaysOnTap: false)
+            // Real covers from the newest eras when there are any (for
+            // example when onboarding is replayed); placeholders otherwise.
+            let covers = BurstArtwork.recentCovers(in: eras, count: 1 + MemoryBurstStyle.maxTipArtwork)
+            MemoryBurst(
+                artwork: covers.first.map(BurstArtwork.url) ?? .placeholder(seed: "Golden Hour"),
+                tipArtwork: BurstArtwork.filling(
+                    BurstArtwork.placeholders(MemoryBurstStyle.maxTipArtwork), with: Array(covers.dropFirst())
+                ),
+                replaysOnTap: false
+            )
 
             VStack(spacing: 6) {
                 Text(Copy.building)

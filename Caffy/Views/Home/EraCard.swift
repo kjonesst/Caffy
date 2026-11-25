@@ -59,7 +59,7 @@ struct EraCard: View {
             // The first five moments, newest first.
             EraCollage(moments: Array(moments.prefix(5)), tapeColor: era.palette.tape)
 
-            ListenPill(palette: era.palette)
+            EraListenButton(era: era, style: .pill(era.palette))
 
             SongList(songs: era.songs(in: moments).map(\.song), limit: Self.songLimit) {
                 showsAllSongs = true

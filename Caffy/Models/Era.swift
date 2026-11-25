@@ -60,6 +60,12 @@ final class Era {
     /// Once the era is frozen, it takes these once and then keeps them.
     var addedSongs: [EraSong]?
 
+    /// This era's near songs that something besides a seeded play backs up
+    /// (see `EraPipeline.corroboratedSongIDs`), sorted. Only read when
+    /// `seededPlaysNeedCorroboration` is on. `nil` until a sync has worked
+    /// it out, and then nothing is left out.
+    var corroboratedSongIDs: [String]?
+
     /// The photos and songs in this era. Deleting an era deletes its moments.
     @Relationship(deleteRule: .cascade, inverse: \Moment.era)
     var moments: [Moment] = []
@@ -109,7 +115,11 @@ final class Era {
     /// The playlist from already-sorted moments. Views that also need the
     /// sorted moments call this, so the moments are sorted only once.
     func songs(in momentsNewestFirst: [Moment]) -> [EraSong] {
-        EraPlaylist.build(momentSongs: momentsNewestFirst.map(\.matches), added: addedSongs ?? [])
+        EraPlaylist.build(
+            momentSongs: momentsNewestFirst.map(\.matches),
+            added: addedSongs ?? [],
+            corroborated: corroboratedSongIDs.map(Set.init)
+        )
     }
 }
 
@@ -130,6 +140,7 @@ extension Era {
         assign(draft.start, to: \.startDate)
         assign(draft.end, to: \.endDate)
         assign(built.palette, to: \.colors)
+        assign(built.corroboratedSongIDs.sorted(), to: \.corroboratedSongIDs)
     }
 
     /// This era as the pipeline needs it once frozen, or `nil` for an era the

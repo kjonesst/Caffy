@@ -41,6 +41,12 @@ final class Moment {
     /// sample data and moments saved before weights were kept.
     var songScores: [Double]?
 
+    /// Whether Caffy saw any of each song's plays happen, rather than all
+    /// being seeded last-played dates (see `EraSong.hasObservedPlay`), in the
+    /// same order as `songs`. `nil` for sample data and moments saved before
+    /// plays were told apart.
+    var songObserved: [Bool]?
+
     /// `true` when `songs` only come from the same day, not from near the moment.
     var songsAreLoose: Bool = false
 
@@ -81,16 +87,36 @@ extension Moment {
             // Without saved weights, earlier songs count for more.
             let score = songScores.flatMap { $0.indices.contains(index) ? $0[index] : nil }
                 ?? Double(songs.count - index)
-            return EraSong(song: song, evidence: evidence, score: score)
+            let observed = songObserved.flatMap { $0.indices.contains(index) ? $0[index] : nil }
+            return EraSong(song: song, evidence: evidence, score: score, hasObservedPlay: observed)
         }
     }
 
-    /// Sets this moment's songs, weights and looseness together, changing
-    /// only what's different. `nil` means not matched against real listening.
+    /// Sets this moment's songs, weights, evidence and looseness together,
+    /// changing only what's different. `nil` means not matched against real
+    /// listening.
     func setMatches(_ matches: [EraSong]?) {
         assign(matches?.map(\.song), to: \.songs)
         assign(matches?.map(\.score), to: \.songScores)
+        assign(Self.observed(matches), to: \.songObserved)
         assign(matches?.first?.evidence == .loosePlay, to: \.songsAreLoose)
+    }
+
+    /// Sets only whether each song's plays were observed, for a frozen
+    /// moment saved before plays were told apart. Only when `matches` has the
+    /// same songs in the same order, so frozen songs never change.
+    func backfillObserved(from matches: [EraSong]?) {
+        guard songObserved == nil, let matches, let songs,
+              matches.map(\.song.id) == songs.map(\.id)
+        else { return }
+        assign(Self.observed(matches), to: \.songObserved)
+    }
+
+    /// `nil` when any entry isn't known, so a half-known list is never saved.
+    private static func observed(_ matches: [EraSong]?) -> [Bool]? {
+        guard let matches else { return nil }
+        let known = matches.compactMap(\.hasObservedPlay)
+        return known.count == matches.count ? known : nil
     }
 
     /// The moment's own songs as shown against it: the strongest

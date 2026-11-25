@@ -11,6 +11,9 @@ struct ContentView: View {
     @State private var selectedTab: AppTab = .home
     /// Keeps eras in step with the photo library, once Caffy may read it.
     @State private var librarySync: LibrarySync?
+    /// Publishes era playlists when a listen button is tapped. Shared, so
+    /// a card and its sheet show the same publishing state.
+    @State private var eraPublisher: EraPublisher?
 
     var body: some View {
         // The system tab bar is hidden in favour of `FloatingTabBar`, but
@@ -33,9 +36,13 @@ struct ContentView: View {
                 .padding(.top, 4)
         }
         .tint(Theme.ink)
+        .environment(eraPublisher)
         // `.task` runs async work when the view appears, and cancels it if
         // the view goes away first.
         .task {
+            if eraPublisher == nil {
+                eraPublisher = EraPublisher.live(context: modelContext)
+            }
             await showEras()
         }
         // Photo access granted later, say from Settings: switch to the real library.

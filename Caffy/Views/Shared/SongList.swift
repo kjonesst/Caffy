@@ -12,26 +12,28 @@ struct SongSection: Identifiable {
 /// The cream panel of an era's songs, optionally in labelled groups.
 struct SongList: View {
     let sections: [SongSection]
-    /// Puts a plain listen button above the songs. Home leaves this off, because
-    /// its cards have `ListenPill` instead.
-    var showsListenButton = false
+    /// A listen button drawn above the songs (`EraListenButton` in its plain
+    /// style). Home leaves this off, because its cards have the pill instead.
+    var listenButton: AnyView? = nil
     /// Shows only this many songs, followed by a "See all" row. `nil` shows
     /// every song.
     var limit: Int? = nil
     /// Called by the "See all" row.
     var showAll: () -> Void = {}
 
-    init(songs: [Song], showsListenButton: Bool = false, limit: Int? = nil, showAll: @escaping () -> Void = {}) {
-        self.init(sections: [SongSection(title: nil, songs: songs)], showsListenButton: showsListenButton, limit: limit, showAll: showAll)
+    init(songs: [Song], listenButton: AnyView? = nil, limit: Int? = nil, showAll: @escaping () -> Void = {}) {
+        self.init(sections: [SongSection(title: nil, songs: songs)], listenButton: listenButton, limit: limit, showAll: showAll)
     }
 
     /// Empty sections are left out.
-    init(sections: [SongSection], showsListenButton: Bool = false, limit: Int? = nil, showAll: @escaping () -> Void = {}) {
+    init(sections: [SongSection], listenButton: AnyView? = nil, limit: Int? = nil, showAll: @escaping () -> Void = {}) {
         self.sections = sections.filter { !$0.songs.isEmpty }
-        self.showsListenButton = showsListenButton
+        self.listenButton = listenButton
         self.limit = limit
         self.showAll = showAll
     }
+
+    private var showsListenButton: Bool { listenButton != nil }
 
     private var songCount: Int {
         sections.reduce(0) { $0 + $1.songs.count }
@@ -51,17 +53,9 @@ struct SongList: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if showsListenButton {
-                // Publishing to Apple Music comes later, so this does nothing yet.
-                Button {} label: {
-                    Text("Listen in Apple Music")
-                        .font(Theme.display(16))
-                        .foregroundStyle(Theme.cream)
-                        .frame(maxWidth: .infinity, minHeight: 48)
-                        .background(Theme.ink)
-                }
-                .buttonStyle(.plain)
-                .padding(.bottom, 4)
+            if let listenButton {
+                listenButton
+                    .padding(.bottom, 4)
             }
 
             let visible = visibleSections
@@ -104,28 +98,50 @@ struct SongList: View {
     }
 }
 
+/// What a listen button says: ready, working, or what went wrong.
+struct ListenDisplay: Equatable {
+    var title: String
+    /// Publishing is under way: shows a spinner and ignores taps.
+    var isWorking = false
+    /// Something stopped it; the title says what, and a tap tries again
+    /// (or opens Settings, where that's the fix).
+    var isProblem = false
+
+    static let ready = ListenDisplay(title: String(localized: "Listen in Apple Music"))
+}
+
 /// The big listen button on an era's card, printed in the era's colours.
+/// It only draws; `EraListenButton` decides what it says and does.
 struct ListenPill: View {
     let palette: EraPalette
+    var display: ListenDisplay = .ready
+    let action: () -> Void
 
     var body: some View {
-        // Publishing to Apple Music comes later, so this does nothing yet.
-        Button {} label: {
+        Button(action: action) {
             HStack(spacing: 14) {
-                Image(systemName: "play.fill")
-                    .font(.system(size: 18))
-                    .foregroundStyle(palette.ink)
-                    .frame(width: 48, height: 48)
-                    .background(palette.paper, in: .circle)
+                Group {
+                    if display.isWorking {
+                        ProgressView().tint(palette.ink)
+                    } else {
+                        Image(systemName: display.isProblem ? "exclamationmark" : "play.fill")
+                            .font(.system(size: 18, weight: display.isProblem ? .bold : .regular))
+                    }
+                }
+                .foregroundStyle(palette.ink)
+                .frame(width: 48, height: 48)
+                .background(palette.paper, in: .circle)
 
-                Text("Listen in Apple Music")
-                    .font(Theme.display(20, weight: .heavy))
+                Text(display.title)
+                    .font(Theme.display(display.isProblem ? 17 : 20, weight: .heavy))
                     .tracking(-0.2)
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentTransition(.opacity)
 
-                Image(systemName: "arrow.up.right")
+                Image(systemName: display.isProblem ? "arrow.clockwise" : "arrow.up.right")
                     .font(.system(size: 17, weight: .bold))
+                    .opacity(display.isWorking ? 0 : 1)
             }
             .foregroundStyle(palette.paper)
             .padding(.leading, 8)
@@ -139,8 +155,38 @@ struct ListenPill: View {
                     .shadow(color: Color(hex: 0x281206).opacity(0.34), radius: 11, y: 10)
             }
             .contentShape(.capsule)
+            .animation(.easeOut(duration: 0.2), value: display)
         }
         .buttonStyle(.plain)
+        .disabled(display.isWorking)
+        .accessibilityLabel(display.title)
+        .accessibilityHint(display.isProblem ? "Tries again" : "Opens this era's playlist in Apple Music, making it first if needed")
+    }
+}
+
+/// The plain listen button above an era's full song list.
+struct PlainListenButton: View {
+    var display: ListenDisplay = .ready
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                if display.isWorking {
+                    ProgressView().tint(Theme.cream)
+                }
+                Text(display.title)
+                    .font(Theme.display(16))
+                    .multilineTextAlignment(.center)
+            }
+            .foregroundStyle(Theme.cream)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .background(Theme.ink)
+        }
+        .buttonStyle(.plain)
+        .disabled(display.isWorking)
+        .accessibilityHint(display.isProblem ? "Tries again" : "Opens this era's playlist in Apple Music, making it first if needed")
     }
 }
 
@@ -180,8 +226,9 @@ struct SongRow: View {
 
 #Preview {
     VStack {
-        ListenPill(palette: .rust)
-        SongList(songs: SampleData.previewSongs, showsListenButton: true)
+        ListenPill(palette: .rust) {}
+        ListenPill(palette: .rust, display: ListenDisplay(title: "Making your playlist…", isWorking: true)) {}
+        SongList(songs: SampleData.previewSongs, listenButton: AnyView(PlainListenButton {}))
         SongList(sections: [
             SongSection(title: "Playing at these moments", songs: Array(SampleData.previewSongs.prefix(2))),
             SongSection(title: "Added to your library around this time", songs: Array(SampleData.previewSongs.suffix(2)))

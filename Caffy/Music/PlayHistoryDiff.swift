@@ -14,11 +14,17 @@ nonisolated enum PlayHistoryDiff {
         var lastPlayedDate: Date?
         var playCount: Int
     }
+    
 
     /// The plays between `previous` and `current`.
     ///
     /// - First sighting: one exact play at its `lastPlayedDate`, saved so it
-    ///   outlives the next play overwriting the date.
+    ///   outlives the next play overwriting the date. It's seeded
+    ///   (`ListeningEvent.isSeeded`) when there was no earlier read, or the
+    ///   date is before it: the play happened before the recorder could have
+    ///   seen it (this also covers a song back under a new `persistentID`
+    ///   with an old date). Otherwise the song was added and played since the
+    ///   last read, so the play is observed.
     /// - Date moved forward: one exact play at the new date. If the count went
     ///   up by `n > 1`, the other `n − 1` plays are estimated between the
     ///   later of the earlier read and the old date, and the new date.
@@ -35,7 +41,10 @@ nonisolated enum PlayHistoryDiff {
     /// whole window. A window longer than `maxEstimatedWindow` (or with no
     /// length) gives plays that aren't `isMatchable`.
     ///
-    /// - Parameter previousCheck: when the library was last read, if ever.
+    /// Plays from every rule but the first sighting are observed.
+    ///
+    /// - Parameter previousCheck: when the library was last read (the
+    ///   recorder's previous pass), or `nil` on the very first pass.
     static func newPlays(
         previous: State?,
         current: LibrarySongSnapshot,
@@ -45,7 +54,10 @@ nonisolated enum PlayHistoryDiff {
     ) -> [ListeningEvent] {
         let song = current.song
         guard let previous else {
-            return current.lastPlayedDate.map { [exact(song, at: $0)] } ?? []
+            guard let last = current.lastPlayedDate else { return [] }
+            var play = exact(song, at: last)
+            play.isSeeded = previousCheck.map { last < $0 } ?? true
+            return [play]
         }
 
         let added = current.playCount - previous.playCount

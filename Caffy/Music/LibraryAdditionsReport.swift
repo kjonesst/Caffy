@@ -21,21 +21,75 @@ nonisolated struct LibraryAdditionsReport: Equatable, Sendable {
     }
 
     /// How a saved era's playlist splits by where its songs came from.
+    ///
+    /// `total` is the playlist after removing repeats. The groups are counted
+    /// before that, so a song both played near a moment and added in the era
+    /// is in `near` and `added`. The near split can overlap too, so it's
+    /// counts, not a partition:
+    /// - `multiMoment`: near two or more of the era's moments;
+    /// - `observed`: at least one near play Caffy saw happen (or not known);
+    /// - `seededOnly`: every near play is seeded, a last-played date from
+    ///   before recording (`EraPlaylist.NearEvidence.isSeededOnly`); in
+    ///   practice one play, since seeded plays are one per song;
+    /// - `flagWouldDrop`: seeded-only songs that aren't corroborated, which
+    ///   `seededPlaysNeedCorroboration` would leave out.
     struct PlaylistSplit: Equatable, Sendable {
+        var total = 0
         var near = 0
+        var multiMoment = 0
+        var observed = 0
+        var seededOnly = 0
         var added = 0
         var loose = 0
+        var flagWouldDrop = 0
 
-        init(near: Int = 0, added: Int = 0, loose: Int = 0) {
+        init(
+            total: Int = 0, near: Int = 0, multiMoment: Int = 0, observed: Int = 0,
+            seededOnly: Int = 0, added: Int = 0, loose: Int = 0, flagWouldDrop: Int = 0
+        ) {
+            self.total = total
             self.near = near
+            self.multiMoment = multiMoment
+            self.observed = observed
+            self.seededOnly = seededOnly
             self.added = added
             self.loose = loose
+            self.flagWouldDrop = flagWouldDrop
         }
 
-        init(_ songs: [EraSong]) {
-            near = songs.count { $0.evidence == .nearPlay }
-            added = songs.count { $0.evidence == .libraryAdded }
-            loose = songs.count { $0.evidence == .loosePlay }
+        /// - Parameters:
+        ///   - momentSongs: each moment's songs, newest moment first.
+        ///   - playlist: the era's playlist as built from them.
+        ///   - corroborated: `nil` when not known; then nothing would drop.
+        init(momentSongs: [[EraSong]], added: [EraSong], playlist: [EraSong], corroborated: Set<String>?) {
+            let evidence = EraPlaylist.nearEvidence(momentSongs: momentSongs).values
+            total = playlist.count
+            near = evidence.count
+            multiMoment = evidence.count { $0.moments >= 2 }
+            observed = evidence.count { $0.hasObservedOrUnknown }
+            seededOnly = evidence.count { $0.isSeededOnly }
+            self.added = added.count
+            loose = playlist.count { $0.evidence == .loosePlay }
+            flagWouldDrop = corroborated.map { corroborated in
+                EraPlaylist.dropped(EraPlaylist.nearEvidence(momentSongs: momentSongs), corroborated: corroborated).count
+            } ?? 0
+        }
+
+        /// A saved era's split.
+        @MainActor
+        init(_ era: Era) {
+            let moments = era.momentsNewestFirst
+            self.init(
+                momentSongs: moments.map(\.matches),
+                added: era.addedSongs ?? [],
+                playlist: era.songs(in: moments),
+                corroborated: era.corroboratedSongIDs.map(Set.init)
+            )
+        }
+
+        var text: String {
+            "playlist: \(total) · near \(near) (multi-moment \(multiMoment) · observed \(observed) · seeded-only \(seededOnly))"
+                + " · added \(added) · loose \(loose) · flag would drop \(flagWouldDrop)"
         }
     }
 
@@ -211,7 +265,7 @@ nonisolated struct LibraryAdditionsReport: Equatable, Sendable {
                 lines.append("\(name) · \(era.isTrip ? "trip" : "home") · \(day(era.start)) – \(end)")
                 lines.append("  \(row.raw) / \(row.played) / \(row.afterBulkDays) / \(row.afterAlbums)")
                 if let playlist = row.playlist {
-                    lines.append("  playlist: near \(playlist.near) · added \(playlist.added) · loose \(playlist.loose)")
+                    lines.append("  \(playlist.text)")
                 }
                 for (rank, candidate) in row.top.enumerated() {
                     let song = candidate.snapshot

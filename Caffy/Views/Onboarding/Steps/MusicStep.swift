@@ -52,12 +52,11 @@ struct MusicStep: View {
         }
     }
 
-    /// Connected, and nothing stands in the way of playlists. An unknown
-    /// subscription counts, because without the paid Developer Program the
-    /// check always fails.
+    /// Connected, and the subscription check confirmed playlists can be
+    /// added. An unknown result (the check failed, for example offline)
+    /// still shows "Connected", but doesn't move on by itself.
     private var isReadyForPlaylists: Bool {
-        permissions.music == .authorized
-            && (permissions.library == .canAddToLibrary || permissions.library == .unknown)
+        permissions.music == .authorized && permissions.library == .canAddToLibrary
     }
 
     private var status: OnboardingStatus? {

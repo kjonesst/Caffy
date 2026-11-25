@@ -14,6 +14,13 @@ nonisolated struct ListeningEvent: Hashable, Sendable {
     /// moment it belongs to (longer than `EraBuildConfig.maxEstimatedPlayWindow`).
     /// It still counts towards listening totals, but `MusicMatcher` skips it.
     var isMatchable: Bool = true
+    /// `true` for a play Caffy didn't see happen: a song's `lastPlayedDate`
+    /// from before recording began (the first time the recorder saw the
+    /// song), or straight from the library with nothing recorded
+    /// (`MediaPlayerListeningSource`). The time is real, so it still matches
+    /// moments, but the library keeps only one per song, so it's weaker
+    /// evidence than a play Caffy observed. See `PlayHistoryDiff`.
+    var isSeeded: Bool = false
 }
 
 /// Where Caffy gets the user's listening history from.
